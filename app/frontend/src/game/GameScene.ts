@@ -1121,6 +1121,11 @@ private startLocalGame(): void {
       this.updateLocalBunnyMovement(time, dtFactor);
     }
 
+    if (this.localBunny && this.phase === 'playing') {
+      this.checkLocalObjectives();
+    }
+
+
     for (const rb of this.remoteBunnies.values()) {
       rb.x = Phaser.Math.Linear(rb.x, rb.targetX, 0.3);
       rb.y = Phaser.Math.Linear(rb.y, rb.targetY, 0.3);
