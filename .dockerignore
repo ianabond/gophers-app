@@ -1,8 +1,0 @@
-**/node_modules
-frontend/dist
-app-server/public
-.git
-.env
-*.pem
-keys
-.DS_Store
