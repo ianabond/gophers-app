@@ -185,7 +185,7 @@ export class GameScene extends Phaser.Scene {
     r: Phaser.Input.Keyboard.Key;
   };
 
-  private pendingWelcome: WelcomeMessage | null = null;
+  //private pendingWelcome: WelcomeMessage | null = null;
 
   constructor() {
     super('GameScene');
@@ -446,7 +446,7 @@ private startLocalGame(): void {
     switch (msg.type) {
       case 'welcome':
         if (!this.scene.isActive() || !this.textures.exists('carrot')) {
-          this.pendingWelcome = msg;
+          //this.pendingWelcome = msg;
         } else {
           this.applyWelcome(msg);
         }
