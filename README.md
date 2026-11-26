@@ -1,4 +1,4 @@
-# Gophers Game
+# Bunny Burrow Game
 
 **Live deployment:** https://bunnyburrowgame.fun
 
