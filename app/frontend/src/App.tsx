@@ -1,5 +1,5 @@
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PhaserCanvas } from './components/PhaserCanvas';
 import { ShamanBar } from './components/ShamanBar';
 import { SpatialAudioEngine } from './game/audio';
@@ -64,6 +64,16 @@ export function App() {
       setAngleDeg(angle);
     },
   };
+
+  useEffect(() => {
+  if (!playing) return;
+
+  const timer = window.setInterval(() => {
+    setSecondsLeft((previous) => Math.max(0, previous - 1));
+  }, 1000);
+
+  return () => window.clearInterval(timer);
+  }, [playing]);
 
   const handleSceneReady = useCallback((scene: GameScene | null) => {
     sceneRef.current = scene;
