@@ -85,9 +85,10 @@ export interface GameUiCallbacks {
 }
 
 export interface GameSceneInitData {
-  socket: WebSocket;
   audio: SpatialAudioEngine;
   uiCallbacks: GameUiCallbacks;
+  username: string;
+  furColor: string;
 }
 
 interface BunnyVisual extends Phaser.GameObjects.Container {
@@ -120,7 +121,8 @@ interface ShamanObjectEntry {
 type WelcomeMessage = Extract<ServerMessage, { type: 'welcome' }>;
 
 export class GameScene extends Phaser.Scene {
-  public socket: WebSocket | null = null;
+  private localUsername = 'CottonTail';
+  private localFurColor = '#f8efe4';
   private audio: SpatialAudioEngine | null = null;
   private uiCallbacks: GameUiCallbacks | null = null;
 
@@ -188,11 +190,13 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
-  init(data: GameSceneInitData): void {
-    this.socket = data.socket;
-    this.audio = data.audio;
-    this.uiCallbacks = data.uiCallbacks;
-  }
+init(data: GameSceneInitData): void {
+  this.audio = data.audio;
+  this.uiCallbacks = data.uiCallbacks;
+
+  this.localUsername = data.username;
+  this.localFurColor = data.furColor;
+}
 
   create(): void {
     generateAllTextures(this);
@@ -253,11 +257,71 @@ export class GameScene extends Phaser.Scene {
     this.localGhost = this.add.image(0, 0, 'shaman_plank').setAlpha(0).setDepth(18);
     this.remoteGhost = this.add.image(0, 0, 'shaman_plank').setAlpha(0).setDepth(17).setTint(0xffe08a);
 
-    if (this.pendingWelcome) {
-      this.applyWelcome(this.pendingWelcome);
-      this.pendingWelcome = null;
-    }
+    this.startLocalGame();
   }
+
+
+private startLocalGame(): void {
+  const map: MapData = {
+    id: 'sunlit-meadow',
+    name: 'Sunlit Meadow',
+    theme: 'meadow',
+    roundDurationSec: 75,
+
+    spawn: { x: 160, y: 550 },
+    carrot: { x: 1380, y: 315 },
+    stump: { x: 250, y: 210 },
+
+    platforms: [
+      { x: 220, y: 620, w: 340, h: 48, material: 'grass', angle: 0 },
+      { x: 525, y: 545, w: 150, h: 26, material: 'wood', angle: -0.06 },
+      { x: 820, y: 590, w: 250, h: 46, material: 'grass', angle: 0 },
+      { x: 1085, y: 500, w: 72, h: 36, material: 'bouncy', angle: 0 },
+      { x: 1340, y: 375, w: 290, h: 46, material: 'grass', angle: 0 },
+      { x: 1030, y: 295, w: 170, h: 26, material: 'wood', angle: 0.05 },
+      { x: 720, y: 335, w: 185, h: 28, material: 'grass', angle: 0 },
+      { x: 290, y: 265, w: 280, h: 46, material: 'grass', angle: 0 },
+    ],
+  };
+
+  this.selfUsername = this.localUsername;
+  this.phase = 'playing';
+
+  this.loadMap(map);
+
+  // In single-player, you are the only player,
+  // so you automatically become the shaman.
+  this.updateShaman(this.localUsername);
+
+  const player: PlayerSnapshot = {
+    username: this.localUsername,
+    furColor: this.localFurColor,
+    x: map.spawn.x,
+    y: map.spawn.y,
+    vx: 0,
+    vy: 0,
+    facing: 1,
+    anim: 'idle',
+    hasCarrot: false,
+    finished: false,
+    place: null,
+    carrotsCollected: 0,
+    firstPlaces: 0,
+    shamanSaves: 0,
+  };
+
+  this.createLocalBunny(player);
+
+  this.uiCallbacks?.onRoundStart?.({
+    map,
+    shaman: this.localUsername,
+    roundEndsAt: Date.now() + map.roundDurationSec * 1000,
+    isShaman: true,
+  });
+
+  this.showBanner('Collect the Golden Carrot! 🥕');
+}
+
 
   private setupInputs(): void {
     const kb = this.input.keyboard;
@@ -844,17 +908,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnShamanItemAt(x: number, y: number): void {
-    if (!this.socket || this.socket.readyState !== 1) return;
-    this.socket.send(
-      JSON.stringify({
-        type: 'shaman_spawn',
-        itemType: this.selectedShamanItem,
-        x,
-        y,
-        angle: this.shamanAngleRad,
-      }),
-    );
-  }
+  const object: ShamanObject = {
+    id: `local-${Date.now()}-${Math.random()}`,
+    type: this.selectedShamanItem,
+    x,
+    y,
+    angle: this.shamanAngleRad,
+  };
+
+  this.spawnShamanObject(object, true);
+}
 
   private onRemoteShamanPreview(msg: Extract<ServerMessage, { type: 'shaman_preview' }>): void {
     if (!this.remoteGhost || msg.shaman === this.selfUsername) return;
@@ -1025,18 +1088,6 @@ export class GameScene extends Phaser.Scene {
         .setRotation(this.shamanAngleRad)
         .setAlpha(0.45);
 
-      if (time - this.localState.lastPreviewSentAt > 85 && this.socket?.readyState === 1) {
-        this.localState.lastPreviewSentAt = time;
-        this.socket.send(
-          JSON.stringify({
-            type: 'shaman_preview',
-            itemType: this.selectedShamanItem,
-            x: worldPt.x,
-            y: worldPt.y,
-            angle: this.shamanAngleRad,
-          }),
-        );
-      }
     } else {
       this.localGhost?.setAlpha(0);
     }
@@ -1148,7 +1199,9 @@ export class GameScene extends Phaser.Scene {
 
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keys.f) && time - state.lastBoopAt > 1400) {
       state.lastBoopAt = time;
-      this.socket?.send(JSON.stringify({ type: 'boop' }));
+
+      this.audio?.playBoop(bunny.x, bunny.y);
+      this.sparkleEmitter.emitParticleAt(bunny.x, bunny.y, 8);
     }
 
     if (!onGround) {
@@ -1169,20 +1222,6 @@ export class GameScene extends Phaser.Scene {
       this.matter.body.setVelocity(body, { x: 0, y: 0 });
     }
 
-    if (time - state.lastStateSentAt >= 48 && this.socket?.readyState === 1) {
-      state.lastStateSentAt = time;
-      this.socket.send(
-        JSON.stringify({
-          type: 'state',
-          x: bunny.x,
-          y: bunny.y,
-          vx: vx * 48,
-          vy: vy * 48,
-          facing: state.facing,
-          anim: state.anim,
-        }),
-      );
-    }
   }
 
   private animateBunnyVisual(container: BunnyVisual, facing: 1 | -1, anim: AnimState, time: number): void {
