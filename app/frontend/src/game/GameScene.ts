@@ -182,6 +182,7 @@ export class GameScene extends Phaser.Scene {
     two: Phaser.Input.Keyboard.Key;
     three: Phaser.Input.Keyboard.Key;
     four: Phaser.Input.Keyboard.Key;
+    r: Phaser.Input.Keyboard.Key;
   };
 
   private pendingWelcome: WelcomeMessage | null = null;
@@ -339,6 +340,7 @@ private startLocalGame(): void {
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
       four: Phaser.Input.Keyboard.KeyCodes.FOUR,
+      r: Phaser.Input.Keyboard.KeyCodes.R,
     }) as typeof this.keys;
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -1132,6 +1134,71 @@ private startLocalGame(): void {
       this.animateBunnyVisual(rb, rb.facing, rb.animState, time);
     }
   }
+
+  private checkLocalObjectives(): void {
+    const bunny = this.localBunny;
+
+    if (!bunny || !this.currentMap || this.localState.finished) {
+      return;
+    }
+
+    // Collect the golden carrot.
+    if (!this.localState.hasCarrot && this.carrotSprite) {
+      const distanceToCarrot = Phaser.Math.Distance.Between(
+        bunny.x,
+        bunny.y,
+        this.currentMap.carrot.x,
+        this.currentMap.carrot.y
+      );
+
+      if (distanceToCarrot < 38) {
+        this.localState.hasCarrot = true;
+
+        this.carrotSprite.setVisible(false);
+        bunny.carrotSprite.setVisible(true);
+
+        this.sparkleEmitter.emitParticleAt(
+          this.currentMap.carrot.x,
+          this.currentMap.carrot.y,
+          18
+        );
+
+        this.audio?.playCarrot(bunny.x, bunny.y);
+
+        this.stumpHint?.setText('Bring the carrot to the stump! 🥕');
+
+        this.showBanner('Golden Carrot Collected! 🥕');
+      }
+    }
+
+  // Return to the stump with the carrot.
+  if (this.localState.hasCarrot) {
+    const distanceToStump = Phaser.Math.Distance.Between(
+      bunny.x,
+      bunny.y,
+      this.currentMap.stump.x,
+      this.currentMap.stump.y
+    );
+
+    if (distanceToStump < 55) {
+      this.localState.finished = true;
+
+      bunny.setVisible(false);
+
+      this.leafEmitter.emitParticleAt(bunny.x, bunny.y, 25);
+      this.sparkleEmitter.emitParticleAt(bunny.x, bunny.y, 20);
+
+      this.audio?.playNestEntry(bunny.x, bunny.y);
+
+      this.showBanner('You made it home! Welcome to the Burrow! 🏡');
+
+      this.uiCallbacks?.onStatsUpdated?.({
+        carrotsCollected: 1,
+        firstPlaces: 1,
+      });
+    }
+  }
+}
 
   private updateLocalBunnyMovement(time: number, dtFactor: number): void {
     const bunny = this.localBunny;
