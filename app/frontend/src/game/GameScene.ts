@@ -1133,7 +1133,57 @@ private startLocalGame(): void {
       rb.y = Phaser.Math.Linear(rb.y, rb.targetY, 0.3);
       this.animateBunnyVisual(rb, rb.facing, rb.animState, time);
     }
+    if (
+    this.localState.finished &&
+    this.keys &&
+    Phaser.Input.Keyboard.JustDown(this.keys.r)
+    ) {
+      this.restartLocalRound();
+    }
   }
+
+  private restartLocalRound(): void {
+    if (!this.localBunny?.matterBody || !this.currentMap) {
+      return;
+    }
+
+    const spawn = this.currentMap.spawn;
+
+    this.localState.hasCarrot = false;
+    this.localState.finished = false;
+
+    this.localState.groundContacts = 0;
+    this.localState.iceContacts = 0;
+    this.localState.leftWallContacts = 0;
+    this.localState.rightWallContacts = 0;
+
+    this.matter.body.setPosition(
+      this.localBunny.matterBody,
+      { x: spawn.x, y: spawn.y }
+    );
+
+    this.matter.body.setVelocity(
+      this.localBunny.matterBody,
+      { x: 0, y: 0 }
+    );
+
+    this.localBunny.setVisible(true);
+    this.localBunny.carrotSprite.setVisible(false);
+
+    this.carrotSprite?.setVisible(true);
+    this.stumpHint?.setText('Stump Nest');
+
+    this.phase = 'playing';
+
+    this.uiCallbacks?.onRoundStart?.({
+      map: this.currentMap,
+      shaman: this.localUsername,
+      roundEndsAt: Date.now() + this.currentMap.roundDurationSec * 1000,
+      isShaman: true,
+    });
+    this.showBanner('A new adventure begins! 🥕');
+  }
+
 
   private checkLocalObjectives(): void {
     const bunny = this.localBunny;
