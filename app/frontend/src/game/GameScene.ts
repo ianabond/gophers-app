@@ -1268,21 +1268,33 @@ private startLocalGame(): void {
     );
 
     if (distanceToStump < 55) {
-      this.localState.finished = true;
+      // The shaman must wait until every other bunny has entered.
+      if (this.isLocalShaman()) {
+        const otherBunniesStillOutside = Array.from(
+          this.remoteBunnies.values()
+        ).some((otherBunny) => !otherBunny.finished);
 
-      bunny.setVisible(false);
+        if (otherBunniesStillOutside) {
+              this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
+              return;
+            }
+          }
 
-      this.leafEmitter.emitParticleAt(bunny.x, bunny.y, 25);
-      this.sparkleEmitter.emitParticleAt(bunny.x, bunny.y, 20);
+          this.localState.finished = true;
 
-      this.audio?.playNestEntry(bunny.x, bunny.y);
+          bunny.setVisible(false);
 
-      this.showBanner('You made it home! Welcome to the Burrow! 🏡');
+          this.leafEmitter.emitParticleAt(bunny.x, bunny.y, 25);
+          this.sparkleEmitter.emitParticleAt(bunny.x, bunny.y, 20);
 
-      this.uiCallbacks?.onStatsUpdated?.({
-        carrotsCollected: 1,
-        firstPlaces: 1,
-      });
+          this.audio?.playNestEntry(bunny.x, bunny.y);
+
+          this.showBanner('You made it home! Welcome to the Burrow! 🏡');
+
+          this.uiCallbacks?.onStatsUpdated?.({
+            carrotsCollected: 1,
+            firstPlaces: 1,
+          });
     }
   }
 }
