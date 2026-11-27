@@ -102,9 +102,11 @@ export function App() {
     return (
       <main className="home">
         <header className="header">
-          <div className="logo">🐰 Bunny Burrow</div>
+          <a href="/" className="logo" aria-label="Bunny Burrow home">
+            🐰 Bunny Burrow
+          </a>
           <span>A little adventure awaits...</span>
-        </header>
+      </header>
 
         <section className="hero">
           <div className="intro">

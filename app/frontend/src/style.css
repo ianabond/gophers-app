@@ -375,4 +375,7 @@ h1 span {
     font-size: 11px;
   }
 }
-
+.logo {
+  text-decoration: none;
+  color: inherit;
+}
