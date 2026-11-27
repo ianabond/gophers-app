@@ -15,6 +15,106 @@ import { drawPlatformTexture, ensureBunnyTexture, generateAllTextures } from './
 const WORLD_WIDTH = 1600;
 const WORLD_HEIGHT = 800;
 
+
+const LOCAL_MAPS: MapData[] = [
+  // 1. SUNLIT MEADOW — EASY
+  {
+    id: 'sunlit-meadow',
+    name: 'Sunlit Meadow',
+    theme: 'meadow',
+    roundDurationSec: 75,
+    spawn: { x: 160, y: 550 },
+    carrot: { x: 1380, y: 315 },
+    stump: { x: 250, y: 210 },
+    platforms: [
+      { x: 220, y: 620, w: 340, h: 48, material: 'grass', angle: 0 },
+      { x: 525, y: 545, w: 150, h: 26, material: 'wood', angle: -0.06 },
+      { x: 820, y: 590, w: 250, h: 46, material: 'grass', angle: 0 },
+      { x: 1085, y: 500, w: 72, h: 36, material: 'bouncy', angle: 0 },
+      { x: 1340, y: 375, w: 290, h: 46, material: 'grass', angle: 0 },
+      { x: 1030, y: 295, w: 170, h: 26, material: 'wood', angle: 0.05 },
+      { x: 720, y: 335, w: 185, h: 28, material: 'grass', angle: 0 },
+      { x: 290, y: 265, w: 280, h: 46, material: 'grass', angle: 0 },
+    ],
+  },
+
+  // 2. FROSTY PINE RIDGE — MEDIUM
+  {
+    id: 'frosty-pine-ridge',
+    name: 'Frosty Pine Ridge',
+    theme: 'frost',
+    roundDurationSec: 75,
+    spawn: { x: 160, y: 580 },
+    carrot: { x: 1400, y: 245 },
+    stump: { x: 210, y: 145 },
+    platforms: [
+      { x: 190, y: 650, w: 240, h: 38, material: 'stone', angle: 0 },
+      { x: 410, y: 555, w: 125, h: 22, material: 'ice', angle: -0.06 },
+      { x: 650, y: 465, w: 115, h: 22, material: 'ice', angle: 0.04 },
+      { x: 900, y: 525, w: 130, h: 24, material: 'stone', angle: 0 },
+      { x: 1130, y: 420, w: 120, h: 22, material: 'ice', angle: -0.04 },
+      { x: 1390, y: 300, w: 190, h: 30, material: 'stone', angle: 0 },
+      { x: 1120, y: 280, w: 100, h: 20, material: 'ice', angle: 0 },
+      { x: 850, y: 340, w: 110, h: 20, material: 'ice', angle: 0.05 },
+      { x: 580, y: 350, w: 100, h: 20, material: 'ice', angle: 0 },
+      { x: 340, y: 350, w: 110, h: 22, material: 'stone', angle: 0 },
+    ],
+  },
+
+  // 3. MUSHROOM CAVERN — HARD
+  {
+    id: 'mushroom-cavern',
+    name: 'Mushroom Cavern',
+    theme: 'cavern',
+    roundDurationSec: 75,
+    spawn: { x: 150, y: 580 },
+    carrot: { x: 1400, y: 190 },
+    stump: { x: 210, y: 125 },
+    platforms: [
+      { x: 180, y: 650, w: 220, h: 38, material: 'stone', angle: 0 },
+      { x: 370, y: 550, w: 85, h: 22, material: 'stone', angle: 0 },
+      { x: 570, y: 445, w: 90, h: 28, material: 'bouncy', angle: 0 },
+      { x: 770, y: 340, w: 100, h: 22, material: 'stone', angle: 0 },
+      { x: 970, y: 445, w: 90, h: 28, material: 'bouncy', angle: 0 },
+      { x: 1160, y: 335, w: 100, h: 22, material: 'stone', angle: 0 },
+      { x: 1400, y: 245, w: 190, h: 30, material: 'stone', angle: 0 },
+      { x: 1180, y: 205, w: 85, h: 20, material: 'stone', angle: 0 },
+      { x: 950, y: 245, w: 90, h: 22, material: 'bouncy', angle: 0 },
+      { x: 720, y: 180, w: 100, h: 22, material: 'stone', angle: 0 },
+      { x: 470, y: 260, w: 85, h: 22, material: 'bouncy', angle: 0 },
+      { x: 300, y: 350, w: 100, h: 22, material: 'stone', angle: 0 },
+    ],
+  },
+
+  // 4. TWILIGHT HOLLOW — VERY HARD / PARKOUR
+  {
+    id: 'twilight-hollow',
+    name: 'Twilight Hollow',
+    theme: 'twilight',
+    roundDurationSec: 90,
+    spawn: { x: 120, y: 620 },
+    carrot: { x: 1430, y: 165 },
+    stump: { x: 180, y: 110 },
+    platforms: [
+      { x: 140, y: 690, w: 160, h: 30, material: 'stone', angle: 0 },
+      { x: 300, y: 575, w: 75, h: 18, material: 'wood', angle: 0.04 },
+      { x: 470, y: 475, w: 70, h: 18, material: 'stone', angle: -0.05 },
+      { x: 640, y: 565, w: 75, h: 18, material: 'wood', angle: 0 },
+      { x: 810, y: 430, w: 65, h: 18, material: 'stone', angle: 0.05 },
+      { x: 980, y: 330, w: 70, h: 18, material: 'wood', angle: 0 },
+      { x: 1150, y: 420, w: 65, h: 18, material: 'stone', angle: -0.04 },
+      { x: 1320, y: 300, w: 75, h: 18, material: 'wood', angle: 0 },
+      { x: 1450, y: 210, w: 180, h: 28, material: 'stone', angle: 0 },
+      { x: 1220, y: 185, w: 65, h: 18, material: 'stone', angle: 0 },
+      { x: 1020, y: 120, w: 65, h: 18, material: 'wood', angle: 0 },
+      { x: 800, y: 220, w: 65, h: 18, material: 'stone', angle: 0 },
+      { x: 580, y: 135, w: 65, h: 18, material: 'wood', angle: 0 },
+      { x: 380, y: 240, w: 75, h: 18, material: 'stone', angle: 0 },
+    ],
+  },
+];
+
+
 interface ThemePalette {
   skyTop: number;
   skyBottom: number;
@@ -131,6 +231,10 @@ export class GameScene extends Phaser.Scene {
   private currentMap: MapData | null = null;
   private phase: 'playing' | 'intermission' = 'playing';
 
+  private roundEndsAt = 0;
+  private firstFinisherUsername: string | null = null;
+  private roundTransitionPending = false;
+
   private remoteBunnies = new Map<string, BunnyVisual>();
   private shamanObjects = new Map<string, ShamanObjectEntry>();
   private staticBodies: MatterJS.BodyType[] = [];
@@ -183,7 +287,6 @@ export class GameScene extends Phaser.Scene {
     three: Phaser.Input.Keyboard.Key;
     four: Phaser.Input.Keyboard.Key;
     five: Phaser.Input.Keyboard.Key;
-    r: Phaser.Input.Keyboard.Key;
   };
 
   //private pendingWelcome: WelcomeMessage | null = null;
@@ -262,32 +365,111 @@ init(data: GameSceneInitData): void {
     this.startLocalGame();
   }
 
+private endLocalRound(): void {
+  this.roundTransitionPending = true;
+  this.phase = 'intermission';
+
+  this.showBanner('Round over! Next map loading...');
+
+  this.time.delayedCall(2500, () => {
+    this.startNextLocalRound();
+  });
+}
+
+private startNextLocalRound(): void {
+  // Choose a different map from the previous round.
+  const mapChoices = LOCAL_MAPS.filter(
+    (map) => map.id !== this.currentMap?.id
+  );
+
+  const map = Phaser.Utils.Array.GetRandom(
+    mapChoices.length > 0 ? mapChoices : LOCAL_MAPS
+  );
+
+  // The first bunny to reach the nest becomes the next shaman.
+  // If nobody finished, choose a random player.
+  const playerNames = [
+    this.localUsername,
+    ...Array.from(this.remoteBunnies.keys()),
+  ];
+
+  const nextShaman =
+    this.firstFinisherUsername &&
+    playerNames.includes(this.firstFinisherUsername)
+      ? this.firstFinisherUsername
+      : Phaser.Utils.Array.GetRandom(playerNames);
+
+  this.phase = 'playing';
+  this.roundEndsAt = Date.now() + map.roundDurationSec * 1000;
+  this.firstFinisherUsername = null;
+  this.roundTransitionPending = false;
+
+  // Load the new map and clear the previous map's objects.
+  this.loadMap(map);
+  this.updateShaman(nextShaman);
+
+  // Reset the local bunny.
+  if (this.localBunny?.matterBody) {
+    this.matter.body.setPosition(this.localBunny.matterBody, {
+      x: map.spawn.x,
+      y: map.spawn.y,
+    });
+
+    this.matter.body.setVelocity(this.localBunny.matterBody, {
+      x: 0,
+      y: 0,
+    });
+
+    this.localBunny.setPosition(map.spawn.x, map.spawn.y);
+    this.localBunny.targetX = map.spawn.x;
+    this.localBunny.targetY = map.spawn.y;
+    this.localBunny.setVisible(true);
+    this.localBunny.hasCarrot = false;
+    this.localBunny.finished = false;
+    this.localBunny.carrotSprite.setVisible(false);
+
+    this.localState.hasCarrot = false;
+    this.localState.finished = false;
+    this.localState.groundContacts = 0;
+    this.localState.iceContacts = 0;
+    this.localState.leftWallContacts = 0;
+    this.localState.rightWallContacts = 0;
+    this.localState.coyoteUntil = 0;
+    this.localState.jumpBufferUntil = 0;
+  }
+
+  // Reset all remote bunnies.
+  for (const bunny of this.remoteBunnies.values()) {
+    bunny.hasCarrot = false;
+    bunny.finished = false;
+    bunny.setVisible(true);
+    bunny.carrotSprite.setVisible(false);
+    bunny.setPosition(map.spawn.x, map.spawn.y);
+    bunny.targetX = map.spawn.x;
+    bunny.targetY = map.spawn.y;
+  }
+
+  // Update the React HUD with the new round information.
+  this.uiCallbacks?.onRoundStart?.({
+    map,
+    shaman: nextShaman,
+    roundEndsAt: this.roundEndsAt,
+    isShaman: nextShaman === this.selfUsername,
+  });
+
+  this.showBanner(`${map.name} · Shaman: ${nextShaman}`);
+}
 
 private startLocalGame(): void {
-  const map: MapData = {
-    id: 'sunlit-meadow',
-    name: 'Sunlit Meadow',
-    theme: 'meadow',
-    roundDurationSec: 75,
-
-    spawn: { x: 160, y: 550 },
-    carrot: { x: 1380, y: 315 },
-    stump: { x: 250, y: 210 },
-
-    platforms: [
-      { x: 220, y: 620, w: 340, h: 48, material: 'grass', angle: 0 },
-      { x: 525, y: 545, w: 150, h: 26, material: 'wood', angle: -0.06 },
-      { x: 820, y: 590, w: 250, h: 46, material: 'grass', angle: 0 },
-      { x: 1085, y: 500, w: 72, h: 36, material: 'bouncy', angle: 0 },
-      { x: 1340, y: 375, w: 290, h: 46, material: 'grass', angle: 0 },
-      { x: 1030, y: 295, w: 170, h: 26, material: 'wood', angle: 0.05 },
-      { x: 720, y: 335, w: 185, h: 28, material: 'grass', angle: 0 },
-      { x: 290, y: 265, w: 280, h: 46, material: 'grass', angle: 0 },
-    ],
-  };
+  const randomIndex = Phaser.Math.Between(0, LOCAL_MAPS.length - 1);
+  const map = LOCAL_MAPS[randomIndex];
 
   this.selfUsername = this.localUsername;
   this.phase = 'playing';
+
+  this.roundEndsAt = Date.now() + map.roundDurationSec * 1000;
+  this.firstFinisherUsername = null;
+  this.roundTransitionPending = false;
 
   this.loadMap(map);
 
@@ -317,7 +499,7 @@ private startLocalGame(): void {
   this.uiCallbacks?.onRoundStart?.({
     map,
     shaman: this.localUsername,
-    roundEndsAt: Date.now() + map.roundDurationSec * 1000,
+    roundEndsAt: this.roundEndsAt,
     isShaman: true,
   });
 
@@ -342,7 +524,6 @@ private startLocalGame(): void {
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
       four: Phaser.Input.Keyboard.KeyCodes.FOUR,
       five: Phaser.Input.Keyboard.KeyCodes.FIVE,
-      r: Phaser.Input.Keyboard.KeyCodes.R,
     }) as typeof this.keys;
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -1013,6 +1194,9 @@ private startLocalGame(): void {
   }
 
   private onBunnyNested(msg: Extract<ServerMessage, { type: 'bunny_nested' }>): void {
+    if (!this.firstFinisherUsername) {
+      this.firstFinisherUsername = msg.username;
+    }
     this.leafEmitter.emitParticleAt(msg.x, msg.y - 20, 18);
     this.sparkleEmitter.emitParticleAt(msg.x, msg.y - 20, 14);
     this.audio?.playNestEntry(msg.x, msg.y);
@@ -1106,6 +1290,14 @@ private startLocalGame(): void {
 
   update(time: number, delta: number): void {
     const dtFactor = Math.min(2.5, delta / 16.67);
+    if (
+      this.phase === 'playing' &&
+      this.roundEndsAt > 0 &&
+      Date.now() >= this.roundEndsAt &&
+      !this.roundTransitionPending
+    ) {
+      this.endLocalRound();
+    }
 
     if (this.isLocalShaman() && this.phase === 'playing' && !this.isTypingInInput() && this.keys) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.one)) this.setShamanItem('plank');
@@ -1170,55 +1362,6 @@ private startLocalGame(): void {
       rb.y = Phaser.Math.Linear(rb.y, rb.targetY, 0.3);
       this.animateBunnyVisual(rb, rb.facing, rb.animState, time);
     }
-    if (
-    this.localState.finished &&
-    this.keys &&
-    Phaser.Input.Keyboard.JustDown(this.keys.r)
-    ) {
-      this.restartLocalRound();
-    }
-  }
-
-  private restartLocalRound(): void {
-    if (!this.localBunny?.matterBody || !this.currentMap) {
-      return;
-    }
-
-    const spawn = this.currentMap.spawn;
-
-    this.localState.hasCarrot = false;
-    this.localState.finished = false;
-
-    this.localState.groundContacts = 0;
-    this.localState.iceContacts = 0;
-    this.localState.leftWallContacts = 0;
-    this.localState.rightWallContacts = 0;
-
-    this.matter.body.setPosition(
-      this.localBunny.matterBody,
-      { x: spawn.x, y: spawn.y }
-    );
-
-    this.matter.body.setVelocity(
-      this.localBunny.matterBody,
-      { x: 0, y: 0 }
-    );
-
-    this.localBunny.setVisible(true);
-    this.localBunny.carrotSprite.setVisible(false);
-
-    this.carrotSprite?.setVisible(true).setAlpha(1);
-    this.stumpHint?.setText('Stump Nest');
-
-    this.phase = 'playing';
-
-    this.uiCallbacks?.onRoundStart?.({
-      map: this.currentMap,
-      shaman: this.localUsername,
-      roundEndsAt: Date.now() + this.currentMap.roundDurationSec * 1000,
-      isShaman: true,
-    });
-    this.showBanner('A new adventure begins! 🥕');
   }
 
 
@@ -1278,8 +1421,10 @@ private startLocalGame(): void {
               this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
               return;
             }
+      }
+          if (!this.firstFinisherUsername) {
+            this.firstFinisherUsername = this.localUsername;
           }
-
           this.localState.finished = true;
 
           bunny.setVisible(false);
