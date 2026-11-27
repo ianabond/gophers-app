@@ -80,8 +80,9 @@ export function App() {
   }, []);
 
   function handlePlay() {
-    if (!username.trim()) return;
-
+    const cleanUsername = username.trim()
+    if (!cleanUsername) return;
+    setUsername(cleanUsername)
     audioRef.current.unlock();
     setPlaying(true);
   }
