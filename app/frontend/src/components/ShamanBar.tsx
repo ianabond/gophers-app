@@ -12,6 +12,7 @@ const ITEMS: Array<{ id: ShamanItemType; label: string }> = [
   { id: 'crate', label: '[2] Crate' },
   { id: 'mushroom', label: '[3] Mushroom' },
   { id: 'gust', label: '[4] Wind Gust' },
+  { id: 'deleter', label: '[5] Deleter' },
 ];
 
 export function ShamanBar({ selectedItem, angleDeg, onSelectItem, onRotate }: ShamanBarProps) {

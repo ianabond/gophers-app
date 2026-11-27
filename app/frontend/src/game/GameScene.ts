@@ -182,6 +182,7 @@ export class GameScene extends Phaser.Scene {
     two: Phaser.Input.Keyboard.Key;
     three: Phaser.Input.Keyboard.Key;
     four: Phaser.Input.Keyboard.Key;
+    five: Phaser.Input.Keyboard.Key;
     r: Phaser.Input.Keyboard.Key;
   };
 
@@ -340,6 +341,7 @@ private startLocalGame(): void {
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
       four: Phaser.Input.Keyboard.KeyCodes.FOUR,
+      five: Phaser.Input.Keyboard.KeyCodes.FIVE,
       r: Phaser.Input.Keyboard.KeyCodes.R,
     }) as typeof this.keys;
 
@@ -369,14 +371,23 @@ private startLocalGame(): void {
 
   public setShamanItem(itemType: ShamanItemType): void {
     this.selectedShamanItem = itemType;
-    const textureMap: Record<ShamanItemType, string> = {
+    const textureMap: Partial<Record<ShamanItemType, string>> = {
       plank: 'shaman_plank',
       crate: 'shaman_crate',
       mushroom: 'mushroom_pad',
       gust: 'gust_orb',
     };
-    this.localGhost?.setTexture(textureMap[itemType]);
+
+    const texture = textureMap[itemType];
+
+    if (texture) {
+      this.localGhost?.setTexture(texture).setAlpha(0.45);
+    } else {
+      this.localGhost?.setAlpha(0);
+    }
+
     this.uiCallbacks?.onShamanToolChanged?.(itemType);
+
   }
 
   public rotateShamanItem(degDelta: number): void {
@@ -909,7 +920,28 @@ private startLocalGame(): void {
     this.shamanObjects.delete(id);
   }
 
-  private spawnShamanItemAt(x: number, y: number): void {
+   private deleteShamanObjectAt(x: number, y: number): void {
+    // Check objects from top to bottom so the topmost object is selected.
+    const objects = Array.from(this.shamanObjects.values()).reverse();
+
+    for (const obj of objects) {
+      if (!obj.sprite) continue;
+
+      const bounds = obj.sprite.getBounds();
+
+      if (bounds.contains(x, y)) {
+        this.removeShamanObject(obj.id);
+        this.sparkleEmitter.emitParticleAt(x, y, 8);
+        return;
+      }
+    }
+  }
+ private spawnShamanItemAt(x: number, y: number): void {
+  if (this.selectedShamanItem === 'deleter') {
+    this.deleteShamanObjectAt(x, y);
+    return;
+  }
+
   const object: ShamanObject = {
     id: `local-${Date.now()}-${Math.random()}`,
     type: this.selectedShamanItem,
@@ -923,7 +955,7 @@ private startLocalGame(): void {
 
   private onRemoteShamanPreview(msg: Extract<ServerMessage, { type: 'shaman_preview' }>): void {
     if (!this.remoteGhost || msg.shaman === this.selfUsername) return;
-    const textureMap: Record<ShamanItemType, string> = {
+    const textureMap: Partial<Record<ShamanItemType, string>> = {
       plank: 'shaman_plank',
       crate: 'shaman_crate',
       mushroom: 'mushroom_pad',
@@ -1080,15 +1112,20 @@ private startLocalGame(): void {
       if (Phaser.Input.Keyboard.JustDown(this.keys.two)) this.setShamanItem('crate');
       if (Phaser.Input.Keyboard.JustDown(this.keys.three)) this.setShamanItem('mushroom');
       if (Phaser.Input.Keyboard.JustDown(this.keys.four)) this.setShamanItem('gust');
+      if (Phaser.Input.Keyboard.JustDown(this.keys.five)) this.setShamanItem('deleter');
       if (Phaser.Input.Keyboard.JustDown(this.keys.q)) this.rotateShamanItem(-15);
       if (Phaser.Input.Keyboard.JustDown(this.keys.e)) this.rotateShamanItem(15);
 
       const pointer = this.input.activePointer;
       const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-      this.localGhost
-        ?.setPosition(worldPt.x, worldPt.y)
-        .setRotation(this.shamanAngleRad)
-        .setAlpha(0.45);
+      if (this.selectedShamanItem === 'deleter') {
+        this.localGhost?.setAlpha(0);
+      } else {
+        this.localGhost
+          ?.setPosition(worldPt.x, worldPt.y)
+          .setRotation(this.shamanAngleRad)
+          .setAlpha(0.45);
+      }
 
     } else {
       this.localGhost?.setAlpha(0);

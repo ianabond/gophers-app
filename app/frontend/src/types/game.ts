@@ -11,7 +11,7 @@ export const FUR_COLORS = [
 
 export type PlatformMaterial = 'grass' | 'wood' | 'ice' | 'stone' | 'bouncy';
 export type ThemeName = 'meadow' | 'frost' | 'cavern' | 'twilight';
-export type ShamanItemType = 'plank' | 'crate' | 'mushroom' | 'gust';
+export type ShamanItemType = 'plank' | 'crate' | 'mushroom' | 'gust' | 'deleter';
 export type EmoteType = 'carrot' | 'heart' | 'sparkle' | 'boop' | 'gg';
 export type AnimState = 'idle' | 'run' | 'jump' | 'fall' | 'wall';
 
