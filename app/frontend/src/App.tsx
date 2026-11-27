@@ -193,8 +193,10 @@ export function App() {
   return (
     <main className="game-screen">
       <header className="game-header">
-        <div className="game-brand">
+        <div>
+          <a href="/" className="game-brand" aria-label="Bunny Burrow home">
           🐰 <strong>Bunny Burrow</strong>
+          </a>
         </div>
 
         <div className="game-hud">

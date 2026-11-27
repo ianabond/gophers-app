@@ -375,7 +375,7 @@ h1 span {
     font-size: 11px;
   }
 }
-.logo {
+.logo, .game-brand {
   text-decoration: none;
   color: inherit;
 }
