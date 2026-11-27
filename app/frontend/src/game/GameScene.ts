@@ -1207,7 +1207,7 @@ private startLocalGame(): void {
     this.localBunny.setVisible(true);
     this.localBunny.carrotSprite.setVisible(false);
 
-    this.carrotSprite?.setVisible(true);
+    this.carrotSprite?.setVisible(true).setAlpha(1);
     this.stumpHint?.setText('Stump Nest');
 
     this.phase = 'playing';
@@ -1241,7 +1241,7 @@ private startLocalGame(): void {
       if (distanceToCarrot < 38) {
         this.localState.hasCarrot = true;
 
-        this.carrotSprite.setVisible(false);
+        this.carrotSprite.setAlpha(0.28);
         bunny.carrotSprite.setVisible(true);
 
         this.sparkleEmitter.emitParticleAt(
