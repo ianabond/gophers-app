@@ -1298,6 +1298,20 @@ private startLocalGame(): void {
     ) {
       this.endLocalRound();
     }
+    if (
+      this.phase === 'playing' &&
+      !this.roundTransitionPending
+    ) {
+      const allBunniesFinished =
+        this.localState.finished &&
+        Array.from(this.remoteBunnies.values()).every(
+          (bunny) => bunny.finished
+        );
+
+      if (allBunniesFinished) {
+        this.endLocalRound();
+      }
+    }
 
     if (this.isLocalShaman() && this.phase === 'playing' && !this.isTypingInInput() && this.keys) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.one)) this.setShamanItem('plank');
