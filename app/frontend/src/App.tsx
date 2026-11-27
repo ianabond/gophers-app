@@ -18,7 +18,7 @@ const COLORS = [
 ];
 
 export function App() {
-  const [username, setUsername] = useState('CottonTail');
+  const [username, setUsername] = useState('');
   const [furColor, setFurColor] = useState(COLORS[0]);
   const [playing, setPlaying] = useState(false);
 
@@ -142,8 +142,10 @@ export function App() {
             <label htmlFor="username">Bunny name</label>
             <input
               id="username"
+              placeholder="Enter username"
               value={username}
               maxLength={20}
+              required
               onChange={(e) => setUsername(e.target.value)}
             />
 
