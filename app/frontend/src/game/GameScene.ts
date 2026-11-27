@@ -234,6 +234,7 @@ export class GameScene extends Phaser.Scene {
   private roundEndsAt = 0;
   private firstFinisherUsername: string | null = null;
   private roundTransitionPending = false;
+  private mapRotation: MapData[] = [];
 
   private remoteBunnies = new Map<string, BunnyVisual>();
   private shamanObjects = new Map<string, ShamanObjectEntry>();
@@ -378,13 +379,7 @@ private endLocalRound(): void {
 
 private startNextLocalRound(): void {
   // Choose a different map from the previous round.
-  const mapChoices = LOCAL_MAPS.filter(
-    (map) => map.id !== this.currentMap?.id
-  );
-
-  const map = Phaser.Utils.Array.GetRandom(
-    mapChoices.length > 0 ? mapChoices : LOCAL_MAPS
-  );
+  const map = this.getNextLocalMap();
 
   // The first bunny to reach the nest becomes the next shaman.
   // If nobody finished, choose a random player.
@@ -460,9 +455,45 @@ private startNextLocalRound(): void {
   this.showBanner(`${map.name} · Shaman: ${nextShaman}`);
 }
 
+private getNextLocalMap(): MapData {
+  // Refill the rotation when every map has been played.
+  if (this.mapRotation.length === 0) {
+    this.mapRotation = [...LOCAL_MAPS];
+
+    // Shuffle the maps using Fisher-Yates.
+    for (let i = this.mapRotation.length - 1; i > 0; i--) {
+      const j = Phaser.Math.Between(0, i);
+
+      [
+        this.mapRotation[i],
+        this.mapRotation[j],
+      ] = [
+        this.mapRotation[j],
+        this.mapRotation[i],
+      ];
+    }
+
+    // Avoid repeating the previous map across rotation cycles.
+    if (
+      this.currentMap &&
+      this.mapRotation.length > 1 &&
+      this.mapRotation[0].id === this.currentMap.id
+    ) {
+      [
+        this.mapRotation[0],
+        this.mapRotation[1],
+      ] = [
+        this.mapRotation[1],
+        this.mapRotation[0],
+      ];
+    }
+  }
+
+  return this.mapRotation.shift()!;
+}
+
 private startLocalGame(): void {
-  const randomIndex = Phaser.Math.Between(0, LOCAL_MAPS.length - 1);
-  const map = LOCAL_MAPS[randomIndex];
+  const map = this.getNextLocalMap();
 
   this.selfUsername = this.localUsername;
   this.phase = 'playing';
