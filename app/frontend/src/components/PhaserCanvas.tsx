@@ -42,6 +42,9 @@ export function PhaserCanvas({
       onShamanToolChanged: (i) =>
         callbacksRef.current.onShamanToolChanged?.(i),
 
+      onItemCountsChanged: (counts) =>
+        callbacksRef.current.onItemCountsChanged?.(counts),
+
       onShamanAngleChanged: (deg) =>
         callbacksRef.current.onShamanAngleChanged?.(deg),
 

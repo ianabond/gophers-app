@@ -45,22 +45,33 @@ type ShamanObject struct {
 	Angle float64 `json:"angle"`
 }
 
+// DefaultItemInventory returns a fresh 1-of-each item inventory for a round.
+func DefaultItemInventory() map[string]int {
+	return map[string]int{
+		"plank":    1,
+		"crate":    1,
+		"mushroom": 1,
+		"gust":     1,
+		"deleter":  1,
+	}
+}
+
 // Player holds the live state for one bunny inside a room.
 type Player struct {
-	Username         string  `json:"username"`
-	FurColor         string  `json:"furColor"`
-	X                float64 `json:"x"`
-	Y                float64 `json:"y"`
-	VX               float64 `json:"vx"`
-	VY               float64 `json:"vy"`
-	Facing           int     `json:"facing"`
-	Anim             string  `json:"anim"`
-	HasCarrot        bool    `json:"hasCarrot"`
-	Finished         bool    `json:"finished"`
-	Place            *int    `json:"place"`
-	CarrotsCollected int     `json:"carrotsCollected"`
-	FirstPlaces      int     `json:"firstPlaces"`
-	ShamanSaves      int     `json:"shamanSaves"`
+	Username         string         `json:"username"`
+	FurColor         string         `json:"furColor"`
+	X                float64        `json:"x"`
+	Y                float64        `json:"y"`
+	VX               float64        `json:"vx"`
+	VY               float64        `json:"vy"`
+	Facing           int            `json:"facing"`
+	Anim             string         `json:"anim"`
+	HasCarrot        bool           `json:"hasCarrot"`
+	Finished         bool           `json:"finished"`
+	Place            *int           `json:"place"`
+	CarrotsCollected int            `json:"carrotsCollected"`
+	FirstPlaces      int            `json:"firstPlaces"`
+	Items            map[string]int `json:"items,omitempty"`
 
 	// Server-only fields for spawn protection and rate limiting.
 	SpawnProtectedUntil time.Time `json:"-"`

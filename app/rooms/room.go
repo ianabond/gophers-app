@@ -3,7 +3,6 @@ package rooms
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -53,10 +52,8 @@ type Room struct {
 	waitingDuration time.Duration
 	roundEndsAt     time.Time
 	nextRoundAt     time.Time
-	shamanUsername string
-	firstFinisher  string
-	finishedCount  int
-	pairCollisions map[string]time.Time
+	finishedCount   int
+	pairCollisions  map[string]time.Time
 
 	joinCh  chan joinRequest
 	leaveCh chan *network.Client
@@ -163,6 +160,7 @@ func (r *Room) addClient(c *network.Client, rawName, rawColor string, now time.T
 		Y:                   r.currentMap.Spawn.Y,
 		Facing:              1,
 		Anim:                "idle",
+		Items:               game.DefaultItemInventory(),
 		SpawnProtectedUntil: now.Add(spawnGracePeriod),
 	}
 
@@ -171,10 +169,6 @@ func (r *Room) addClient(c *network.Client, rawName, rawColor string, now time.T
 
 	r.clients[c] = player
 	r.joinOrder = append(r.joinOrder, c)
-
-	if r.phase == game.PhasePlaying && r.shamanUsername == "" {
-		r.shamanUsername = username
-	}
 
 	// Send full room snapshot to the newly joined player.
 	c.SendJSON(network.ServerMessage{
@@ -187,17 +181,15 @@ func (r *Room) addClient(c *network.Client, rawName, rawColor string, now time.T
 		RoundNumber:  r.roundNumber,
 		Phase:        r.phase,
 		Map:          &r.currentMap,
-		Shaman:       r.shamanPtr(),
 		RoundEndsAt:  r.roundEndsAt.UnixMilli(),
 		Objects:      r.objectList(),
-		Players:      r.playerSnapshots(),
+		Players:      r.playerSnapshots(true),
 	})
 
 	// Notify everyone else in the room.
 	r.broadcastExcept(c, network.ServerMessage{
 		Type:        "player_joined",
 		Player:      player,
-		Shaman:      r.shamanPtr(),
 		RoomID:      r.ID,
 		RoomName:    r.Name,
 		RoomPlayers: len(r.clients),
@@ -227,14 +219,9 @@ func (r *Room) removeClient(c *network.Client) bool {
 		return true
 	}
 
-	if r.phase == game.PhasePlaying && r.shamanUsername == player.Username {
-		r.shamanUsername = r.clients[r.joinOrder[0]].Username
-	}
-
 	r.broadcast(network.ServerMessage{
 		Type:        "player_left",
 		Username:    player.Username,
-		Shaman:      r.shamanPtr(),
 		RoomID:      r.ID,
 		RoomName:    r.Name,
 		RoomPlayers: len(r.clients),
@@ -282,14 +269,6 @@ func (r *Room) handleAction(c *network.Client, msg network.ClientMessage, now ti
 		if r.phase != game.PhasePlaying || player.Finished || !player.HasCarrot {
 			return
 		}
-		// Shaman waits until all other bunnies in the room have finished.
-		if player.Username == r.shamanUsername {
-			for _, other := range r.clients {
-				if other != player && !other.Finished {
-					return
-				}
-			}
-		}
 
 		r.finishedCount++
 		place := r.finishedCount
@@ -298,12 +277,6 @@ func (r *Room) handleAction(c *network.Client, msg network.ClientMessage, now ti
 		player.CarrotsCollected++
 		if place == 1 {
 			player.FirstPlaces++
-			r.firstFinisher = player.Username
-		}
-		if r.shamanUsername != "" && r.shamanUsername != player.Username {
-			if shaman := r.playerByName(r.shamanUsername); shaman != nil {
-				shaman.ShamanSaves++
-			}
 		}
 
 		r.broadcast(network.ServerMessage{
@@ -312,7 +285,6 @@ func (r *Room) handleAction(c *network.Client, msg network.ClientMessage, now ti
 			Place:            place,
 			X:                r.currentMap.Stump.X,
 			Y:                r.currentMap.Stump.Y,
-			ShamanUsername:   r.shamanPtr(),
 			CarrotsCollected: player.CarrotsCollected,
 			FirstPlaces:      player.FirstPlaces,
 		})
@@ -360,12 +332,13 @@ func (r *Room) handleAction(c *network.Client, msg network.ClientMessage, now ti
 		})
 
 	case "shaman_spawn":
-		if r.phase != game.PhasePlaying || player.Username != r.shamanUsername {
+		if r.phase != game.PhasePlaying || player.Finished {
 			return
 		}
-		if !isValidShamanItem(msg.ItemType) {
+		if !isValidShamanItem(msg.ItemType) || player.Items[msg.ItemType] <= 0 {
 			return
 		}
+		player.Items[msg.ItemType]--
 		r.nextObjID++
 		obj := game.ShamanObject{
 			ID:    fmt.Sprintf("obj-%d-%d", r.roundNumber, r.nextObjID),
@@ -379,33 +352,32 @@ func (r *Room) handleAction(c *network.Client, msg network.ClientMessage, now ti
 		r.broadcast(network.ServerMessage{
 			Type:   "object_spawned",
 			Object: &obj,
-			Shaman: r.shamanPtr(),
+			Shaman: &player.Username,
+		})
+		c.SendJSON(network.ServerMessage{
+			Type:  "inventory_update",
+			Items: cloneItems(player.Items),
 		})
 
 	case "shaman_remove":
-		if r.phase != game.PhasePlaying || player.Username != r.shamanUsername {
+		if r.phase != game.PhasePlaying || player.Finished {
+			return
+		}
+		if player.Items["deleter"] <= 0 {
 			return
 		}
 		if _, exists := r.objects[msg.ObjectID]; !exists {
 			return
 		}
+		player.Items["deleter"]--
 		delete(r.objects, msg.ObjectID)
 		r.broadcast(network.ServerMessage{
 			Type: "object_removed",
 			ID:   msg.ObjectID,
 		})
-
-	case "shaman_preview":
-		if r.phase != game.PhasePlaying || player.Username != r.shamanUsername {
-			return
-		}
-		r.broadcastExcept(c, network.ServerMessage{
-			Type:     "shaman_preview",
-			Shaman:   r.shamanPtr(),
-			ItemType: msg.ItemType,
-			X:        msg.X,
-			Y:        msg.Y,
-			Angle:    msg.Angle,
+		c.SendJSON(network.ServerMessage{
+			Type:  "inventory_update",
+			Items: cloneItems(player.Items),
 		})
 
 	case "emote":
@@ -440,14 +412,13 @@ func (r *Room) stepTick(now time.Time) {
 
 	if r.phase == game.PhaseWaiting {
 		if !now.Before(r.roundEndsAt) {
-			r.startNewRound(now, r.pickNextShaman())
+			r.startNewRound(now)
 			r.broadcast(network.ServerMessage{
 				Type:        "round_start",
 				RoundNumber: r.roundNumber,
 				Map:         &r.currentMap,
-				Shaman:      r.shamanPtr(),
 				RoundEndsAt: r.roundEndsAt.UnixMilli(),
-				Players:     r.playerSnapshots(),
+				Players:     r.playerSnapshots(true),
 			})
 		}
 	} else if r.phase == game.PhasePlaying {
@@ -475,7 +446,7 @@ func (r *Room) stepTick(now time.Time) {
 			RoundNumber: r.roundNumber,
 			Map:         &r.currentMap,
 			RoundEndsAt: r.roundEndsAt.UnixMilli(),
-			Players:     r.playerSnapshots(),
+			Players:     r.playerSnapshots(false),
 			RoomID:      r.ID,
 			RoomName:    r.Name,
 			RoomPlayers: len(r.clients),
@@ -485,7 +456,7 @@ func (r *Room) stepTick(now time.Time) {
 
 	r.broadcast(network.ServerMessage{
 		Type:       "snapshot",
-		Players:    r.playerSnapshots(),
+		Players:    r.playerSnapshots(false),
 		ServerTime: now.UnixMilli(),
 	})
 }
@@ -494,7 +465,6 @@ func (r *Room) startWaitingPhase(now time.Time) {
 	r.currentMap = game.WaitingLobbyMap
 	r.phase = game.PhaseWaiting
 	r.roundEndsAt = now.Add(r.waitingDuration)
-	r.shamanUsername = ""
 	r.finishedCount = 0
 	r.objects = make(map[string]game.ShamanObject)
 	r.objectOrder = nil
@@ -511,28 +481,22 @@ func (r *Room) startWaitingPhase(now time.Time) {
 		p.Finished = false
 		p.Place = nil
 		p.Anim = "idle"
+		p.Items = game.DefaultItemInventory()
 		p.SpawnProtectedUntil = now.Add(spawnGracePeriod)
 	}
 }
 
-func (r *Room) startNewRound(now time.Time, nextShaman string) {
+func (r *Room) startNewRound(now time.Time) {
 	r.roundNumber++
 	r.currentMap = game.PickRandomMap(r.lastPlayedMapID)
 	r.lastMapID = r.currentMap.ID
 	r.lastPlayedMapID = r.currentMap.ID
 	r.phase = game.PhasePlaying
 	r.roundEndsAt = now.Add(time.Duration(r.currentMap.RoundDurationSec) * time.Second)
-	r.firstFinisher = ""
 	r.finishedCount = 0
 	r.objects = make(map[string]game.ShamanObject)
 	r.objectOrder = nil
 	r.pairCollisions = make(map[string]time.Time)
-
-	if nextShaman != "" {
-		r.shamanUsername = nextShaman
-	} else if len(r.joinOrder) > 0 {
-		r.shamanUsername = r.clients[r.joinOrder[0]].Username
-	}
 
 	for idx, c := range r.joinOrder {
 		p := r.clients[c]
@@ -545,19 +509,9 @@ func (r *Room) startNewRound(now time.Time, nextShaman string) {
 		p.Finished = false
 		p.Place = nil
 		p.Anim = "idle"
+		p.Items = game.DefaultItemInventory()
 		p.SpawnProtectedUntil = now.Add(spawnGracePeriod)
 	}
-}
-
-func (r *Room) pickNextShaman() string {
-	if r.firstFinisher != "" && r.playerByName(r.firstFinisher) != nil {
-		return r.firstFinisher
-	}
-	if len(r.joinOrder) == 0 {
-		return ""
-	}
-	c := r.joinOrder[rand.IntN(len(r.joinOrder))]
-	return r.clients[c].Username
 }
 
 func (r *Room) playerPtrs() []*game.Player {
@@ -570,14 +524,31 @@ func (r *Room) playerPtrs() []*game.Player {
 	return list
 }
 
-func (r *Room) playerSnapshots() []game.Player {
+func (r *Room) playerSnapshots(includeItems bool) []game.Player {
 	list := make([]game.Player, 0, len(r.joinOrder))
 	for _, c := range r.joinOrder {
 		if p, ok := r.clients[c]; ok {
-			list = append(list, *p)
+			snap := *p
+			if includeItems {
+				snap.Items = cloneItems(p.Items)
+			} else {
+				snap.Items = nil
+			}
+			list = append(list, snap)
 		}
 	}
 	return list
+}
+
+func cloneItems(src map[string]int) map[string]int {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]int, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }
 
 func (r *Room) objectList() []game.ShamanObject {
@@ -613,14 +584,6 @@ func (r *Room) uniqueUsername(base string) string {
 		suffix++
 	}
 	return candidate
-}
-
-func (r *Room) shamanPtr() *string {
-	if r.shamanUsername == "" {
-		return nil
-	}
-	s := r.shamanUsername
-	return &s
 }
 
 func (r *Room) broadcast(msg network.ServerMessage) {

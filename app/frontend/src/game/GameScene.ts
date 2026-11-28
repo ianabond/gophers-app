@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GameSocket, type ConnectionStatus } from '../network/socket';
 import type {
   AnimState,
+  ItemCounts,
   MapData,
   PlayerSnapshot,
   RoomInfo,
@@ -73,13 +74,11 @@ export interface GameUiCallbacks {
   onRoundStart?: (payload: {
     phase: 'waiting' | 'playing' | 'intermission';
     map: MapData;
-    shaman: string | null;
     roundEndsAt: number;
-    isShaman: boolean;
   }) => void;
   onRoundTimerUpdate?: (endsAt: number) => void;
-  onShamanChanged?: (shaman: string | null, isShaman: boolean) => void;
   onShamanToolChanged?: (itemType: ShamanItemType) => void;
+  onItemCountsChanged?: (counts: ItemCounts) => void;
   onShamanAngleChanged?: (deg: number) => void;
   onOnlineCountChanged?: (count: number) => void;
   onRoomUpdated?: (room: RoomInfo) => void;
@@ -133,7 +132,6 @@ export class GameScene extends Phaser.Scene {
   private uiCallbacks: GameUiCallbacks | null = null;
 
   private selfUsername: string | null = null;
-  private shamanUsername: string | null = null;
   private currentMap: MapData | null = null;
   private phase: 'waiting' | 'playing' | 'intermission' = 'waiting';
 
@@ -141,8 +139,14 @@ export class GameScene extends Phaser.Scene {
   private spawnGraceUntil = 0;
   private lastCarrotAttemptAt = 0;
   private lastStumpAttemptAt = 0;
-  private lastShamanWaitBannerAt = 0;
   private lastRespawnSentAt = 0;
+  private itemCounts: ItemCounts = {
+    plank: 1,
+    crate: 1,
+    mushroom: 1,
+    gust: 1,
+    deleter: 1,
+  };
 
   private remoteBunnies = new Map<string, BunnyVisual>();
   private shamanObjects = new Map<string, ShamanObjectEntry>();
@@ -172,7 +176,6 @@ export class GameScene extends Phaser.Scene {
   private selectedShamanItem: ShamanItemType = 'plank';
   private shamanAngleRad = 0;
   private localGhost: Phaser.GameObjects.Image | null = null;
-  private remoteGhost: Phaser.GameObjects.Image | null = null;
   private bannerText: Phaser.GameObjects.Text | null = null;
   private carrotSprite: Phaser.GameObjects.Image | null = null;
   private stumpSprite: Phaser.GameObjects.Image | null = null;
@@ -270,7 +273,6 @@ init(data: GameSceneInitData): void {
       .setAlpha(0);
 
     this.localGhost = this.add.image(0, 0, 'shaman_plank').setAlpha(0).setDepth(18);
-    this.remoteGhost = this.add.image(0, 0, 'shaman_plank').setAlpha(0).setDepth(17).setTint(0xffe08a);
 
     this.socket = new GameSocket({
       username: this.localUsername,
@@ -317,13 +319,13 @@ init(data: GameSceneInitData): void {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.audio?.unlock();
       if (this.isTypingInInput()) return;
-      if (this.isLocalShaman() && this.phase === 'playing') {
+      if (this.phase === 'playing' && !this.localState.finished) {
         this.spawnShamanItemAt(pointer.worldX, pointer.worldY);
       }
     });
 
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objs: unknown[], _dx: number, deltaY: number) => {
-      if (this.isLocalShaman()) {
+      if (this.phase === 'playing' && !this.localState.finished) {
         this.rotateShamanItem(deltaY > 0 ? 15 : -15);
       }
     });
@@ -332,10 +334,6 @@ init(data: GameSceneInitData): void {
   private isTypingInInput(): boolean {
     const active = document.activeElement;
     return Boolean(active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA'));
-  }
-
-  private isLocalShaman(): boolean {
-    return Boolean(this.selfUsername && this.shamanUsername === this.selfUsername);
   }
 
   public setShamanItem(itemType: ShamanItemType): void {
@@ -458,9 +456,7 @@ init(data: GameSceneInitData): void {
         this.uiCallbacks?.onRoundStart?.({
           phase: 'intermission',
           map: this.currentMap!,
-          shaman: this.shamanUsername,
           roundEndsAt: msg.nextRoundAt,
-          isShaman: this.isLocalShaman(),
         });
         this.showBanner('Round Complete! Next meadow loading...');
         break;
@@ -471,7 +467,6 @@ init(data: GameSceneInitData): void {
         if (msg.player.username !== this.selfUsername) {
           this.spawnOrUpdateRemoteBunny(msg.player);
         }
-        this.updateShaman(msg.shaman);
         if (msg.roomName && msg.roomPlayers !== undefined && msg.maxPlayers !== undefined) {
           this.uiCallbacks?.onRoomUpdated?.({
             roomId: msg.roomId || '',
@@ -485,7 +480,6 @@ init(data: GameSceneInitData): void {
         break;
       case 'player_left':
         this.removeRemoteBunny(msg.username);
-        this.updateShaman(msg.shaman);
         if (msg.roomName && msg.roomPlayers !== undefined && msg.maxPlayers !== undefined) {
           this.uiCallbacks?.onRoomUpdated?.({
             roomId: msg.roomId || '',
@@ -521,8 +515,8 @@ init(data: GameSceneInitData): void {
       case 'object_removed':
         this.removeShamanObject(msg.id);
         break;
-      case 'shaman_preview':
-        this.onRemoteShamanPreview(msg);
+      case 'inventory_update':
+        this.setItemCounts(msg.items);
         break;
       case 'emote':
         this.showBunnyEmote(msg.username, msg.emote);
@@ -543,6 +537,17 @@ init(data: GameSceneInitData): void {
     this.localState.justJumpedUntil = 0;
   }
 
+  private setItemCounts(items?: Partial<ItemCounts>): void {
+    this.itemCounts = {
+      plank: items?.plank ?? 1,
+      crate: items?.crate ?? 1,
+      mushroom: items?.mushroom ?? 1,
+      gust: items?.gust ?? 1,
+      deleter: items?.deleter ?? 1,
+    };
+    this.uiCallbacks?.onItemCountsChanged?.({ ...this.itemCounts });
+  }
+
   private applyWelcome(msg: WelcomeMessage): void {
     this.selfUsername = msg.selfUsername;
     this.phase = msg.phase;
@@ -559,14 +564,14 @@ init(data: GameSceneInitData): void {
       maxPlayers: msg.maxPlayers,
     });
 
+    const selfSnapshot = msg.players.find((p) => p.username === this.selfUsername);
+    this.setItemCounts(selfSnapshot?.items);
+
     this.loadMap(msg.map);
-    this.updateShaman(msg.shaman);
     this.uiCallbacks?.onRoundStart?.({
       phase: msg.phase,
       map: msg.map,
-      shaman: msg.shaman,
       roundEndsAt: msg.roundEndsAt,
-      isShaman: this.isLocalShaman(),
     });
 
     if (this.localBunny) {
@@ -592,7 +597,6 @@ init(data: GameSceneInitData): void {
 
     this.uiCallbacks?.onOnlineCountChanged?.(msg.players.length);
     if (msg.phase === 'waiting') {
-      this.stumpHint?.setText('Waiting for players...');
       this.showBanner(`${msg.roomName} · Waiting for players...`);
     } else {
       this.showBanner(`${msg.roomName} · ${msg.map.name}`);
@@ -615,18 +619,15 @@ init(data: GameSceneInitData): void {
       });
     }
 
+    this.setItemCounts();
     this.loadMap(msg.map);
-    this.updateShaman(null);
     this.uiCallbacks?.onRoundStart?.({
       phase: 'waiting',
       map: msg.map,
-      shaman: null,
       roundEndsAt: msg.roundEndsAt,
-      isShaman: false,
     });
 
     this.resetBunniesToSpawn(msg.map, msg.players);
-    this.stumpHint?.setText('Waiting for players...');
     this.showBanner('Waiting for players... Next round starts soon!');
   }
 
@@ -637,20 +638,18 @@ init(data: GameSceneInitData): void {
     this.spawnGraceUntil = Date.now() + 1200;
     this.resetContactState();
 
+    const selfSnapshot = msg.players?.find((p) => p.username === this.selfUsername);
+    this.setItemCounts(selfSnapshot?.items);
+
     this.loadMap(msg.map);
-    this.updateShaman(msg.shaman);
     this.uiCallbacks?.onRoundStart?.({
       phase: 'playing',
       map: msg.map,
-      shaman: msg.shaman,
       roundEndsAt: msg.roundEndsAt,
-      isShaman: this.isLocalShaman(),
     });
 
     this.resetBunniesToSpawn(msg.map, msg.players);
-
-    const shamanTag = msg.shaman ? ` · Shaman: ${msg.shaman}` : '';
-    this.showBanner(`${msg.map.name}${shamanTag}`);
+    this.showBanner(`${msg.map.name} · Collect the Golden Carrot! 🥕`);
   }
 
   private resetBunniesToSpawn(map: MapData, players?: PlayerSnapshot[]): void {
@@ -915,7 +914,6 @@ init(data: GameSceneInitData): void {
     this.localState.rightWallContacts = 0;
 
     this.cameras.main.startFollow(container, true, 0.11, 0.11);
-    this.refreshCrownState();
   }
 
   private spawnOrUpdateRemoteBunny(p: PlayerSnapshot): void {
@@ -931,7 +929,6 @@ init(data: GameSceneInitData): void {
         label: 'remote_bunny',
       });
       this.remoteBunnies.set(p.username, rb);
-      this.refreshCrownState();
     } else {
       rb.targetX = p.x;
       rb.targetY = p.y;
@@ -952,26 +949,6 @@ init(data: GameSceneInitData): void {
     if (rb) {
       this.destroyBunnyVisual(rb);
       this.remoteBunnies.delete(username);
-    }
-  }
-
-  private updateShaman(shamanUsername: string | null): void {
-    this.shamanUsername = shamanUsername;
-    this.refreshCrownState();
-    this.uiCallbacks?.onShamanChanged?.(shamanUsername, this.isLocalShaman());
-  }
-
-  private refreshCrownState(): void {
-    const apply = (bunny: BunnyVisual | null): void => {
-      if (!bunny) return;
-      const isSham = bunny.username === this.shamanUsername;
-      bunny.aura.setVisible(isSham);
-      bunny.crown.setVisible(isSham);
-      bunny.nameTag.setY(isSham ? -46 : -40);
-    };
-    apply(this.localBunny);
-    for (const rb of this.remoteBunnies.values()) {
-      apply(rb);
     }
   }
 
@@ -1060,6 +1037,9 @@ init(data: GameSceneInitData): void {
   }
 
   private spawnShamanItemAt(x: number, y: number): void {
+    if ((this.itemCounts[this.selectedShamanItem] ?? 0) <= 0) {
+      return;
+    }
     if (this.selectedShamanItem === 'deleter') {
       this.deleteShamanObjectAt(x, y);
       return;
@@ -1072,21 +1052,6 @@ init(data: GameSceneInitData): void {
       y,
       angle: this.shamanAngleRad,
     });
-  }
-
-  private onRemoteShamanPreview(msg: Extract<ServerMessage, { type: 'shaman_preview' }>): void {
-    if (!this.remoteGhost || msg.shaman === this.selfUsername) return;
-    const textureMap: Partial<Record<ShamanItemType, string>> = {
-      plank: 'shaman_plank',
-      crate: 'shaman_crate',
-      mushroom: 'mushroom_pad',
-      gust: 'gust_orb',
-    };
-    this.remoteGhost
-      .setTexture(textureMap[msg.itemType] || 'shaman_plank')
-      .setPosition(msg.x, msg.y)
-      .setRotation(msg.angle || 0)
-      .setAlpha(0.38);
   }
 
   private applySnapshot(msg: Extract<ServerMessage, { type: 'snapshot' }>): void {
@@ -1250,7 +1215,7 @@ init(data: GameSceneInitData): void {
   update(time: number, delta: number): void {
     const dtFactor = Math.min(2.5, delta / 16.67);
 
-    if (this.isLocalShaman() && this.phase === 'playing' && !this.isTypingInInput() && this.keys) {
+    if (this.phase === 'playing' && !this.localState.finished && !this.isTypingInInput() && this.keys) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.one)) this.setShamanItem('plank');
       if (Phaser.Input.Keyboard.JustDown(this.keys.two)) this.setShamanItem('crate');
       if (Phaser.Input.Keyboard.JustDown(this.keys.three)) this.setShamanItem('mushroom');
@@ -1261,7 +1226,8 @@ init(data: GameSceneInitData): void {
 
       const pointer = this.input.activePointer;
       const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-      if (this.selectedShamanItem === 'deleter') {
+      const hasRemaining = (this.itemCounts[this.selectedShamanItem] ?? 0) > 0;
+      if (this.selectedShamanItem === 'deleter' || !hasRemaining) {
         this.localGhost?.setAlpha(0);
       } else {
         this.localGhost
@@ -1269,23 +1235,8 @@ init(data: GameSceneInitData): void {
           .setRotation(this.shamanAngleRad)
           .setAlpha(0.45);
       }
-
-      if (time - this.localState.lastPreviewSentAt >= 75) {
-        this.localState.lastPreviewSentAt = time;
-        this.socket?.send({
-          type: 'shaman_preview',
-          itemType: this.selectedShamanItem,
-          x: worldPt.x,
-          y: worldPt.y,
-          angle: this.shamanAngleRad,
-        });
-      }
     } else {
       this.localGhost?.setAlpha(0);
-    }
-
-    if (this.isLocalShaman() || this.phase !== 'playing') {
-      this.remoteGhost?.setAlpha(0);
     }
 
     for (const obj of this.shamanObjects.values()) {
@@ -1364,20 +1315,6 @@ init(data: GameSceneInitData): void {
         }
 
         if (now - this.lastStumpAttemptAt >= 200) {
-          if (this.isLocalShaman()) {
-            const otherBunniesStillOutside = Array.from(
-              this.remoteBunnies.values()
-            ).some((otherBunny) => !otherBunny.finished);
-
-            if (otherBunniesStillOutside) {
-              this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
-              if (now - this.lastShamanWaitBannerAt > 2500) {
-                this.lastShamanWaitBannerAt = now;
-                this.showBanner('Shaman enters last! Wait for other bunnies 🐰');
-              }
-              return;
-            }
-          }
           this.lastStumpAttemptAt = now;
           this.socket?.send({ type: 'stump_reach' });
         }

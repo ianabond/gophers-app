@@ -357,6 +357,11 @@ h1 span {
   border-color: #ffcc87;
 }
 
+.game-screen .tool-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .game-screen .shaman-rotate {
   margin-top: 10px;
 }

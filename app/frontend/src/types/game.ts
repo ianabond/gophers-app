@@ -12,6 +12,7 @@ export const FUR_COLORS = [
 export type PlatformMaterial = 'grass' | 'wood' | 'ice' | 'stone' | 'bouncy';
 export type ThemeName = 'meadow' | 'frost' | 'cavern' | 'twilight';
 export type ShamanItemType = 'plank' | 'crate' | 'mushroom' | 'gust' | 'deleter';
+export type ItemCounts = Record<ShamanItemType, number>;
 export type EmoteType = 'carrot' | 'heart' | 'sparkle' | 'boop' | 'gg';
 export type AnimState = 'idle' | 'run' | 'jump' | 'fall' | 'wall';
 
@@ -72,6 +73,7 @@ export interface PlayerSnapshot {
   carrotsCollected: number;
   firstPlaces: number;
   shamanSaves: number;
+  items?: ItemCounts;
 }
 
 export interface ShamanObject {
@@ -223,6 +225,7 @@ export type ServerMessage =
     }
   | { type: 'object_spawned'; object: ShamanObject; shaman: string }
   | { type: 'object_removed'; id: string }
+  | { type: 'inventory_update'; items: ItemCounts }
   | {
       type: 'shaman_preview';
       shaman: string;

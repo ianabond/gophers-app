@@ -115,7 +115,6 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 
 	// Wait for the waiting phase to transition into Round 1.
 	var round1MapID string
-	var round1Shaman string
 	_ = c1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	for {
 		var msg network.ServerMessage
@@ -123,12 +122,56 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 			t.Fatalf("did not receive Round 1 round_start: %v", err)
 		}
 		if msg.Type == "round_start" {
-			if msg.RoundNumber != 1 || msg.Map == nil || msg.Shaman == nil {
+			if msg.RoundNumber != 1 || msg.Map == nil {
 				t.Fatalf("unexpected round_start: %+v", msg)
 			}
+			for _, p := range msg.Players {
+				if p.Items["plank"] != 1 || p.Items["crate"] != 1 || p.Items["mushroom"] != 1 || p.Items["gust"] != 1 || p.Items["deleter"] != 1 {
+					t.Fatalf("expected 1 of each item for %s on Round 1, got %+v", p.Username, p.Items)
+				}
+			}
 			round1MapID = msg.Map.ID
-			round1Shaman = *msg.Shaman
 			break
+		}
+	}
+
+	// Test per-round 1-of-each item limits (spawn 1 plank, reject 2nd, delete 1, reject 2nd delete).
+	_ = c1.WriteJSON(network.ClientMessage{Type: "shaman_spawn", ItemType: "plank", X: 300, Y: 300})
+	_ = c1.WriteJSON(network.ClientMessage{Type: "shaman_spawn", ItemType: "plank", X: 360, Y: 300})
+
+	var spawnedID string
+	sawInvUpdate := false
+	_ = c1.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for spawnedID == "" || !sawInvUpdate {
+		var msg network.ServerMessage
+		if err := c1.ReadJSON(&msg); err != nil {
+			t.Fatalf("did not receive object_spawned/inventory_update: %v", err)
+		}
+		if msg.Type == "object_spawned" && msg.Object != nil {
+			if spawnedID != "" {
+				t.Fatalf("expected second plank spawn in same round to be rejected")
+			}
+			spawnedID = msg.Object.ID
+		}
+		if msg.Type == "inventory_update" {
+			if msg.Items["plank"] != 0 || msg.Items["deleter"] != 1 {
+				t.Fatalf("unexpected inventory after using plank: %+v", msg.Items)
+			}
+			sawInvUpdate = true
+		}
+	}
+
+	_ = c2.WriteJSON(network.ClientMessage{Type: "shaman_remove", ObjectID: spawnedID})
+	_ = c2.WriteJSON(network.ClientMessage{Type: "shaman_remove", ObjectID: spawnedID})
+	sawRemoved := false
+	_ = c2.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for !sawRemoved {
+		var msg network.ServerMessage
+		if err := c2.ReadJSON(&msg); err != nil {
+			t.Fatalf("did not receive object_removed: %v", err)
+		}
+		if msg.Type == "object_removed" && msg.ID == spawnedID {
+			sawRemoved = true
 		}
 	}
 
@@ -151,18 +194,12 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 		}
 	}
 
-	// Complete Round 1 (non-shaman enters stump first, then shaman) and verify waiting_start before Round 2.
+	// Complete Round 1 (any player can enter stump first) and verify waiting_start before Round 2.
 	_ = c1.WriteJSON(network.ClientMessage{Type: "carrot_pickup"})
 	_ = c2.WriteJSON(network.ClientMessage{Type: "carrot_pickup"})
-	if round1Shaman == "Alice" {
-		_ = c2.WriteJSON(network.ClientMessage{Type: "stump_reach"})
-		time.Sleep(50 * time.Millisecond)
-		_ = c1.WriteJSON(network.ClientMessage{Type: "stump_reach"})
-	} else {
-		_ = c1.WriteJSON(network.ClientMessage{Type: "stump_reach"})
-		time.Sleep(50 * time.Millisecond)
-		_ = c2.WriteJSON(network.ClientMessage{Type: "stump_reach"})
-	}
+	_ = c1.WriteJSON(network.ClientMessage{Type: "stump_reach"})
+	time.Sleep(50 * time.Millisecond)
+	_ = c2.WriteJSON(network.ClientMessage{Type: "stump_reach"})
 
 	sawWaitingBetweenRounds := false
 	_ = c1.SetReadDeadline(time.Now().Add(6 * time.Second))
@@ -186,6 +223,11 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 			}
 			if msg.Map == nil || msg.Map.ID == round1MapID {
 				t.Fatalf("expected a new random map different from %q", round1MapID)
+			}
+			for _, p := range msg.Players {
+				if p.Items["plank"] != 1 || p.Items["deleter"] != 1 {
+					t.Fatalf("expected item inventory reset to 1 on Round 2 for %s, got %+v", p.Username, p.Items)
+				}
 			}
 			break
 		}

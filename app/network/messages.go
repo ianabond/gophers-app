@@ -48,6 +48,7 @@ type ServerMessage struct {
 	ItemType         string              `json:"itemType,omitempty"`
 	Angle            float64             `json:"angle,omitempty"`
 	Impulses         []game.Impulse      `json:"impulses,omitempty"`
+	Items            map[string]int      `json:"items,omitempty"`
 	Emote            string              `json:"emote,omitempty"`
 	ServerTime       int64               `json:"serverTime,omitempty"`
 }

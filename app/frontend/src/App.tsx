@@ -5,7 +5,7 @@ import { ShamanBar } from './components/ShamanBar';
 import { SpatialAudioEngine } from './game/audio';
 import type { GameScene, GameUiCallbacks } from './game/GameScene';
 import type { ConnectionStatus } from './network/socket';
-import type { ShamanItemType } from './types/game';
+import type { ItemCounts, ShamanItemType } from './types/game';
 
 const COLORS = [
   '#f8efe4',
@@ -27,8 +27,6 @@ export function App() {
   const [mapName, setMapName] = useState('Connecting...');
   const [phase, setPhase] = useState<'waiting' | 'playing' | 'intermission'>('waiting');
   const [secondsLeft, setSecondsLeft] = useState(20);
-  const [shamanName, setShamanName] = useState<string | null>(null);
-  const [isShaman, setIsShaman] = useState(false);
   const [roomName, setRoomName] = useState('Joining room...');
   const [roomPlayers, setRoomPlayers] = useState(0);
   const [maxPlayers, setMaxPlayers] = useState(8);
@@ -36,6 +34,13 @@ export function App() {
     useState<ConnectionStatus>('connecting');
   const [selectedItem, setSelectedItem] =
     useState<ShamanItemType>('plank');
+  const [itemCounts, setItemCounts] = useState<ItemCounts>({
+    plank: 1,
+    crate: 1,
+    mushroom: 1,
+    gust: 1,
+    deleter: 1,
+  });
   const [angleDeg, setAngleDeg] = useState(0);
   const [audioEnabled, setAudioEnabled] = useState(true);
 
@@ -47,7 +52,7 @@ export function App() {
   const callbacksRef = useRef<GameUiCallbacks>({});
 
   callbacksRef.current = {
-    onRoundStart: ({ phase: nextPhase, map, shaman, roundEndsAt, isShaman: shamanFlag }) => {
+    onRoundStart: ({ phase: nextPhase, map, roundEndsAt }) => {
       setPhase(nextPhase);
       if (map) {
         setMapName(map.name);
@@ -55,19 +60,12 @@ export function App() {
       setSecondsLeft(
         Math.max(0, Math.ceil((roundEndsAt - Date.now()) / 1000))
       );
-      setShamanName(shaman);
-      setIsShaman(shamanFlag);
     },
 
     onRoundTimerUpdate: (endsAt) => {
       setSecondsLeft(
         Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
       );
-    },
-
-    onShamanChanged: (shaman, shamanFlag) => {
-      setShamanName(shaman);
-      setIsShaman(shamanFlag);
     },
 
     onRoomUpdated: (room) => {
@@ -86,6 +84,10 @@ export function App() {
 
     onShamanToolChanged: (item) => {
       setSelectedItem(item);
+    },
+
+    onItemCountsChanged: (counts) => {
+      setItemCounts(counts);
     },
 
     onShamanAngleChanged: (angle) => {
@@ -238,12 +240,6 @@ export function App() {
             <>
               <span>🌿 {mapName}</span>
               <span>⏱ {secondsLeft}s</span>
-              <span>
-                ✨{' '}
-                {isShaman
-                  ? 'You are the Shaman!'
-                  : `Shaman: ${shamanName || '—'}`}
-              </span>
             </>
           )}
           <span>
@@ -272,9 +268,10 @@ export function App() {
           onSceneReady={handleSceneReady}
         />
 
-        {isShaman && (
+        {phase === 'playing' && (
           <ShamanBar
             selectedItem={selectedItem}
+            itemCounts={itemCounts}
             angleDeg={angleDeg}
             onSelectItem={(item) =>
               sceneRef.current?.setShamanItem(item)
@@ -290,9 +287,9 @@ export function App() {
         <span><kbd>A</kbd> <kbd>D</kbd> Move</span>
         <span><kbd>W</kbd> / <kbd>Space</kbd> Jump</span>
         <span><kbd>F</kbd> Boop</span>
-        <span><kbd>1-4</kbd> Select shaman tool</span>
+        <span><kbd>1-5</kbd> Select item</span>
         <span><kbd>Q</kbd> / <kbd>E</kbd> Rotate</span>
-        <span>Click to place objects</span>
+        <span>Click to use item</span>
       </footer>
     </main>
   );
