@@ -33,8 +33,8 @@ export function PhaserCanvas({
       onRoundStart: (p) =>
         callbacksRef.current.onRoundStart?.(p),
 
-      onRoundTimerUpdate: (t) =>
-        callbacksRef.current.onRoundTimerUpdate?.(t),
+      onRoundTimerUpdate: (t, ms) =>
+        callbacksRef.current.onRoundTimerUpdate?.(t, ms),
 
       onShamanToolChanged: (i) =>
         callbacksRef.current.onShamanToolChanged?.(i),

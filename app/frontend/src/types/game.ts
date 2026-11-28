@@ -155,6 +155,7 @@ export type ServerMessage =
       map: MapData;
       shaman: string | null;
       roundEndsAt: number;
+      remainingMs?: number;
       objects: ShamanObject[];
       players: PlayerSnapshot[];
     }
@@ -163,6 +164,7 @@ export type ServerMessage =
       roundNumber: number;
       map: MapData;
       roundEndsAt: number;
+      remainingMs?: number;
       players?: PlayerSnapshot[];
       roomId?: string;
       roomName?: string;
@@ -175,10 +177,11 @@ export type ServerMessage =
       map: MapData;
       shaman: string | null;
       roundEndsAt: number;
+      remainingMs?: number;
       players?: PlayerSnapshot[];
     }
-  | { type: 'round_ended'; roundNumber: number; nextRoundAt: number }
-  | { type: 'round_ending_soon'; roundEndsAt: number }
+  | { type: 'round_ended'; roundNumber: number; nextRoundAt: number; remainingMs?: number }
+  | { type: 'round_ending_soon'; roundEndsAt: number; remainingMs?: number }
   | {
       type: 'player_joined';
       player: PlayerSnapshot;

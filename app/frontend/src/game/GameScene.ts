@@ -75,8 +75,9 @@ export interface GameUiCallbacks {
     phase: 'waiting' | 'playing' | 'intermission';
     map: MapData;
     roundEndsAt: number;
+    remainingMs?: number;
   }) => void;
-  onRoundTimerUpdate?: (endsAt: number) => void;
+  onRoundTimerUpdate?: (endsAt: number, remainingMs?: number) => void;
   onShamanToolChanged?: (itemType: ShamanItemType) => void;
   onItemCountsChanged?: (counts: ItemCounts) => void;
   onShamanAngleChanged?: (deg: number) => void;
@@ -457,11 +458,12 @@ init(data: GameSceneInitData): void {
           phase: 'intermission',
           map: this.currentMap!,
           roundEndsAt: msg.nextRoundAt,
+          remainingMs: msg.remainingMs,
         });
         this.showBanner('Round Complete! Next meadow loading...');
         break;
       case 'round_ending_soon':
-        this.uiCallbacks?.onRoundTimerUpdate?.(msg.roundEndsAt);
+        this.uiCallbacks?.onRoundTimerUpdate?.(msg.roundEndsAt, msg.remainingMs);
         if (!this.localState.finished) {
           this.showBanner('First bunny made it! Round ending soon!');
         }
@@ -575,6 +577,7 @@ init(data: GameSceneInitData): void {
       phase: msg.phase,
       map: msg.map,
       roundEndsAt: msg.roundEndsAt,
+      remainingMs: msg.remainingMs,
     });
 
     if (this.localBunny) {
@@ -628,6 +631,7 @@ init(data: GameSceneInitData): void {
       phase: 'waiting',
       map: msg.map,
       roundEndsAt: msg.roundEndsAt,
+      remainingMs: msg.remainingMs,
     });
 
     this.resetBunniesToSpawn(msg.map, msg.players);
@@ -649,6 +653,7 @@ init(data: GameSceneInitData): void {
       phase: 'playing',
       map: msg.map,
       roundEndsAt: msg.roundEndsAt,
+      remainingMs: msg.remainingMs,
     });
 
     this.resetBunniesToSpawn(msg.map, msg.players);

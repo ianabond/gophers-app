@@ -45,6 +45,7 @@ export function App() {
   const [audioEnabled, setAudioEnabled] = useState(true);
 
   const sceneRef = useRef<GameScene | null>(null);
+  const phaseEndsAtRef = useRef<number>(Date.now() + 20000);
   const audioRef = useRef<SpatialAudioEngine>(
     new SpatialAudioEngine()
   );
@@ -52,19 +53,25 @@ export function App() {
   const callbacksRef = useRef<GameUiCallbacks>({});
 
   callbacksRef.current = {
-    onRoundStart: ({ phase: nextPhase, map, roundEndsAt }) => {
+    onRoundStart: ({ phase: nextPhase, map, roundEndsAt, remainingMs }) => {
       setPhase(nextPhase);
       if (map) {
         setMapName(map.name);
       }
+      const targetEndsAt =
+        remainingMs !== undefined ? Date.now() + remainingMs : roundEndsAt;
+      phaseEndsAtRef.current = targetEndsAt;
       setSecondsLeft(
-        Math.max(0, Math.ceil((roundEndsAt - Date.now()) / 1000))
+        Math.max(0, Math.ceil((targetEndsAt - Date.now()) / 1000))
       );
     },
 
-    onRoundTimerUpdate: (endsAt) => {
+    onRoundTimerUpdate: (endsAt, remainingMs) => {
+      const targetEndsAt =
+        remainingMs !== undefined ? Date.now() + remainingMs : endsAt;
+      phaseEndsAtRef.current = targetEndsAt;
       setSecondsLeft(
-        Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))
+        Math.max(0, Math.ceil((targetEndsAt - Date.now()) / 1000))
       );
     },
 
@@ -96,13 +103,15 @@ export function App() {
   };
 
   useEffect(() => {
-  if (!playing) return;
+    if (!playing) return;
 
-  const timer = window.setInterval(() => {
-    setSecondsLeft((previous) => Math.max(0, previous - 1));
-  }, 1000);
+    const timer = window.setInterval(() => {
+      setSecondsLeft(
+        Math.max(0, Math.ceil((phaseEndsAtRef.current - Date.now()) / 1000))
+      );
+    }, 250);
 
-  return () => window.clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, [playing]);
 
   const handleSceneReady = useCallback((scene: GameScene | null) => {

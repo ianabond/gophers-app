@@ -280,3 +280,64 @@ func TestWebSocketOriginChecks(t *testing.T) {
 		})
 	}
 }
+
+func TestFirstFinishShortensRoundToThreeSeconds(t *testing.T) {
+	prevWait := defaultWaitingDuration
+	defaultWaitingDuration = 100 * time.Millisecond
+	defer func() { defaultWaitingDuration = prevWait }()
+
+	manager := NewManager()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+		network.ServeWS(manager, w, r)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c1, _ := dialTestClient(t, srv.URL, "Alice")
+	defer c1.Close()
+	c2, _ := dialTestClient(t, srv.URL, "Bob")
+	defer c2.Close()
+
+	// Wait for Round 1 to start.
+	_ = c2.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for {
+		var msg network.ServerMessage
+		if err := c2.ReadJSON(&msg); err != nil {
+			t.Fatalf("did not receive round_start: %v", err)
+		}
+		if msg.Type == "round_start" {
+			break
+		}
+	}
+
+	// Only Alice finishes; Bob stays outside.
+	finishedAt := time.Now()
+	_ = c1.WriteJSON(network.ClientMessage{Type: "carrot_pickup"})
+	_ = c1.WriteJSON(network.ClientMessage{Type: "stump_reach"})
+
+	sawEndingSoon := false
+	_ = c2.SetReadDeadline(time.Now().Add(5 * time.Second))
+	for {
+		var msg network.ServerMessage
+		if err := c2.ReadJSON(&msg); err != nil {
+			t.Fatalf("did not receive round_ending_soon/round_ended in time: %v", err)
+		}
+		if msg.Type == "round_ending_soon" {
+			if msg.RemainingMs <= 0 || msg.RemainingMs > 3000 {
+				t.Fatalf("expected remainingMs in (0, 3000], got %d", msg.RemainingMs)
+			}
+			sawEndingSoon = true
+		}
+		if msg.Type == "round_ended" {
+			if !sawEndingSoon {
+				t.Fatalf("expected round_ending_soon before round_ended")
+			}
+			elapsed := time.Since(finishedAt)
+			if elapsed < 2500*time.Millisecond || elapsed > 4500*time.Millisecond {
+				t.Fatalf("expected round to end ~3s after first finish, took %v", elapsed)
+			}
+			break
+		}
+	}
+}

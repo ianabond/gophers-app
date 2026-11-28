@@ -31,6 +31,7 @@ type ServerMessage struct {
 	Shaman           *string             `json:"shaman,omitempty"`
 	RoundEndsAt      int64               `json:"roundEndsAt,omitempty"`
 	NextRoundAt      int64               `json:"nextRoundAt,omitempty"`
+	RemainingMs      int64               `json:"remainingMs,omitempty"`
 	Objects          []game.ShamanObject `json:"objects,omitempty"`
 	Object           *game.ShamanObject  `json:"object,omitempty"`
 	ID               string              `json:"id,omitempty"`

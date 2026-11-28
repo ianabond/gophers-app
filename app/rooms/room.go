@@ -183,6 +183,7 @@ func (r *Room) addClient(c *network.Client, rawName, rawColor string, now time.T
 		Phase:        r.phase,
 		Map:          &r.currentMap,
 		RoundEndsAt:  r.roundEndsAt.UnixMilli(),
+		RemainingMs:  remainingMillis(r.roundEndsAt, now),
 		Objects:      r.objectList(),
 		Players:      r.playerSnapshots(true),
 	})
@@ -296,6 +297,7 @@ func (r *Room) handleAction(c *network.Client, msg network.ClientMessage, now ti
 			r.broadcast(network.ServerMessage{
 				Type:        "round_ending_soon",
 				RoundEndsAt: r.roundEndsAt.UnixMilli(),
+				RemainingMs: remainingMillis(r.roundEndsAt, now),
 			})
 		}
 
@@ -419,6 +421,7 @@ func (r *Room) stepTick(now time.Time) {
 				RoundNumber: r.roundNumber,
 				Map:         &r.currentMap,
 				RoundEndsAt: r.roundEndsAt.UnixMilli(),
+				RemainingMs: remainingMillis(r.roundEndsAt, now),
 				Players:     r.playerSnapshots(true),
 			})
 		}
@@ -438,6 +441,7 @@ func (r *Room) stepTick(now time.Time) {
 				Type:        "round_ended",
 				RoundNumber: r.roundNumber,
 				NextRoundAt: r.nextRoundAt.UnixMilli(),
+				RemainingMs: remainingMillis(r.nextRoundAt, now),
 			})
 		}
 	} else if r.phase == game.PhaseIntermission && !now.Before(r.nextRoundAt) {
@@ -447,6 +451,7 @@ func (r *Room) stepTick(now time.Time) {
 			RoundNumber: r.roundNumber,
 			Map:         &r.currentMap,
 			RoundEndsAt: r.roundEndsAt.UnixMilli(),
+			RemainingMs: remainingMillis(r.roundEndsAt, now),
 			Players:     r.playerSnapshots(false),
 			RoomID:      r.ID,
 			RoomName:    r.Name,
@@ -645,4 +650,12 @@ func clampFloat(v, minVal, maxVal float64) float64 {
 		return maxVal
 	}
 	return v
+}
+
+func remainingMillis(target, now time.Time) int64 {
+	ms := target.Sub(now).Milliseconds()
+	if ms < 0 {
+		return 0
+	}
+	return ms
 }
