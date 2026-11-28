@@ -462,6 +462,9 @@ init(data: GameSceneInitData): void {
         break;
       case 'round_ending_soon':
         this.uiCallbacks?.onRoundTimerUpdate?.(msg.roundEndsAt);
+        if (!this.localState.finished) {
+          this.showBanner('First bunny made it! Round ending soon!');
+        }
         break;
       case 'player_joined':
         if (msg.player.username !== this.selfUsername) {

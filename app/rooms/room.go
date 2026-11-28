@@ -14,6 +14,7 @@ const (
 	MaxPlayersPerRoom    = 8
 	tickInterval         = 40 * time.Millisecond
 	intermissionDuration = 3 * time.Second
+	firstFinishGrace     = 3 * time.Second
 	spawnGracePeriod     = 1200 * time.Millisecond
 	boopCooldown         = 1200 * time.Millisecond
 )
@@ -289,9 +290,9 @@ func (r *Room) handleAction(c *network.Client, msg network.ClientMessage, now ti
 			FirstPlaces:      player.FirstPlaces,
 		})
 
-		// Shorten remaining round time to 10s once the first bunny finishes.
-		if place == 1 && time.Until(r.roundEndsAt) > 10*time.Second {
-			r.roundEndsAt = now.Add(10 * time.Second)
+		// Shorten remaining round time to a few seconds once the first bunny finishes.
+		if place == 1 && r.roundEndsAt.Sub(now) > firstFinishGrace {
+			r.roundEndsAt = now.Add(firstFinishGrace)
 			r.broadcast(network.ServerMessage{
 				Type:        "round_ending_soon",
 				RoundEndsAt: r.roundEndsAt.UnixMilli(),
