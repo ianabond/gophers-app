@@ -47,6 +47,7 @@ type Room struct {
 
 	currentMap      game.MapData
 	lastMapID       string
+	lastPlayedMapID string
 	roundNumber     int
 	phase           string
 	waitingDuration time.Duration
@@ -202,19 +203,6 @@ func (r *Room) addClient(c *network.Client, rawName, rawColor string, now time.T
 		RoomPlayers: len(r.clients),
 		MaxPlayers:  MaxPlayersPerRoom,
 	})
-
-	// If the room reached full capacity (8/8) during waiting, start Round 1 immediately.
-	if r.phase == game.PhaseWaiting && len(r.clients) >= MaxPlayersPerRoom {
-		r.startNewRound(now, "")
-		r.broadcast(network.ServerMessage{
-			Type:        "round_start",
-			RoundNumber: r.roundNumber,
-			Map:         &r.currentMap,
-			Shaman:      r.shamanPtr(),
-			RoundEndsAt: r.roundEndsAt.UnixMilli(),
-			Players:     r.playerSnapshots(),
-		})
-	}
 
 	return true
 }
@@ -452,7 +440,7 @@ func (r *Room) stepTick(now time.Time) {
 
 	if r.phase == game.PhaseWaiting {
 		if !now.Before(r.roundEndsAt) {
-			r.startNewRound(now, "")
+			r.startNewRound(now, r.pickNextShaman())
 			r.broadcast(network.ServerMessage{
 				Type:        "round_start",
 				RoundNumber: r.roundNumber,
@@ -481,14 +469,17 @@ func (r *Room) stepTick(now time.Time) {
 			})
 		}
 	} else if r.phase == game.PhaseIntermission && !now.Before(r.nextRoundAt) {
-		r.startNewRound(now, r.pickNextShaman())
+		r.startWaitingPhase(now)
 		r.broadcast(network.ServerMessage{
-			Type:        "round_start",
+			Type:        "waiting_start",
 			RoundNumber: r.roundNumber,
 			Map:         &r.currentMap,
-			Shaman:      r.shamanPtr(),
 			RoundEndsAt: r.roundEndsAt.UnixMilli(),
 			Players:     r.playerSnapshots(),
+			RoomID:      r.ID,
+			RoomName:    r.Name,
+			RoomPlayers: len(r.clients),
+			MaxPlayers:  MaxPlayersPerRoom,
 		})
 	}
 
@@ -500,22 +491,36 @@ func (r *Room) stepTick(now time.Time) {
 }
 
 func (r *Room) startWaitingPhase(now time.Time) {
-	r.currentMap = game.PickRandomMap("")
+	r.currentMap = game.PickRandomMap(r.lastMapID)
 	r.lastMapID = r.currentMap.ID
 	r.phase = game.PhaseWaiting
 	r.roundEndsAt = now.Add(r.waitingDuration)
 	r.shamanUsername = ""
-	r.firstFinisher = ""
 	r.finishedCount = 0
 	r.objects = make(map[string]game.ShamanObject)
 	r.objectOrder = nil
 	r.pairCollisions = make(map[string]time.Time)
+
+	for idx, c := range r.joinOrder {
+		p := r.clients[c]
+		offset := float64((idx%5)-2) * 14
+		p.X = r.currentMap.Spawn.X + offset
+		p.Y = r.currentMap.Spawn.Y
+		p.VX = 0
+		p.VY = 0
+		p.HasCarrot = false
+		p.Finished = false
+		p.Place = nil
+		p.Anim = "idle"
+		p.SpawnProtectedUntil = now.Add(spawnGracePeriod)
+	}
 }
 
 func (r *Room) startNewRound(now time.Time, nextShaman string) {
 	r.roundNumber++
-	r.currentMap = game.PickRandomMap(r.lastMapID)
+	r.currentMap = game.PickRandomMap(r.lastPlayedMapID)
 	r.lastMapID = r.currentMap.ID
+	r.lastPlayedMapID = r.currentMap.ID
 	r.phase = game.PhasePlaying
 	r.roundEndsAt = now.Add(time.Duration(r.currentMap.RoundDurationSec) * time.Second)
 	r.firstFinisher = ""

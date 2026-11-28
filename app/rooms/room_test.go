@@ -112,6 +112,7 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 
 	// Wait for the waiting phase to transition into Round 1.
 	var round1MapID string
+	var round1Shaman string
 	_ = c1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	for {
 		var msg network.ServerMessage
@@ -119,10 +120,11 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 			t.Fatalf("did not receive Round 1 round_start: %v", err)
 		}
 		if msg.Type == "round_start" {
-			if msg.RoundNumber != 1 || msg.Map == nil {
+			if msg.RoundNumber != 1 || msg.Map == nil || msg.Shaman == nil {
 				t.Fatalf("unexpected round_start: %+v", msg)
 			}
 			round1MapID = msg.Map.ID
+			round1Shaman = *msg.Shaman
 			break
 		}
 	}
@@ -146,20 +148,33 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 		}
 	}
 
-	// Complete the round for both players and verify next round starts with a different random map.
+	// Complete Round 1 (non-shaman enters stump first, then shaman) and verify waiting_start before Round 2.
 	_ = c1.WriteJSON(network.ClientMessage{Type: "carrot_pickup"})
 	_ = c2.WriteJSON(network.ClientMessage{Type: "carrot_pickup"})
-	_ = c2.WriteJSON(network.ClientMessage{Type: "stump_reach"})
-	time.Sleep(50 * time.Millisecond)
-	_ = c1.WriteJSON(network.ClientMessage{Type: "stump_reach"})
+	if round1Shaman == "Alice" {
+		_ = c2.WriteJSON(network.ClientMessage{Type: "stump_reach"})
+		time.Sleep(50 * time.Millisecond)
+		_ = c1.WriteJSON(network.ClientMessage{Type: "stump_reach"})
+	} else {
+		_ = c1.WriteJSON(network.ClientMessage{Type: "stump_reach"})
+		time.Sleep(50 * time.Millisecond)
+		_ = c2.WriteJSON(network.ClientMessage{Type: "stump_reach"})
+	}
 
-	_ = c1.SetReadDeadline(time.Now().Add(5 * time.Second))
+	sawWaitingBetweenRounds := false
+	_ = c1.SetReadDeadline(time.Now().Add(6 * time.Second))
 	for {
 		var msg network.ServerMessage
 		if err := c1.ReadJSON(&msg); err != nil {
 			t.Fatalf("did not receive round_start after finishing: %v", err)
 		}
+		if msg.Type == "waiting_start" {
+			sawWaitingBetweenRounds = true
+		}
 		if msg.Type == "round_start" {
+			if !sawWaitingBetweenRounds {
+				t.Fatalf("expected waiting_start phase between Round 1 and Round 2")
+			}
 			if msg.RoundNumber != 2 {
 				t.Fatalf("expected round 2, got %d", msg.RoundNumber)
 			}

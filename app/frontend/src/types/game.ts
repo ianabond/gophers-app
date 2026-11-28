@@ -157,6 +157,17 @@ export type ServerMessage =
       players: PlayerSnapshot[];
     }
   | {
+      type: 'waiting_start';
+      roundNumber: number;
+      map: MapData;
+      roundEndsAt: number;
+      players?: PlayerSnapshot[];
+      roomId?: string;
+      roomName?: string;
+      roomPlayers?: number;
+      maxPlayers?: number;
+    }
+  | {
       type: 'round_start';
       roundNumber: number;
       map: MapData;

@@ -139,8 +139,9 @@ export class GameScene extends Phaser.Scene {
 
   private socket: GameSocket | null = null;
   private spawnGraceUntil = 0;
-  private carrotPickupSent = false;
-  private stumpReachSent = false;
+  private lastCarrotAttemptAt = 0;
+  private lastStumpAttemptAt = 0;
+  private lastShamanWaitBannerAt = 0;
   private lastRespawnSentAt = 0;
 
   private remoteBunnies = new Map<string, BunnyVisual>();
@@ -162,6 +163,7 @@ export class GameScene extends Phaser.Scene {
     rightWallContacts: 0,
     coyoteUntil: 0,
     jumpBufferUntil: 0,
+    justJumpedUntil: 0,
     lastBoopAt: 0,
     lastStateSentAt: 0,
     lastPreviewSentAt: 0,
@@ -364,6 +366,15 @@ init(data: GameSceneInitData): void {
   }
 
   private setupCollisions(): void {
+    // Recompute active sensor contacts every physics step so removing platforms
+    // or teleporting never leaves stale jump/wall contact counts stuck > 0.
+    this.matter.world.on('beforeupdate', () => {
+      this.localState.groundContacts = 0;
+      this.localState.iceContacts = 0;
+      this.localState.leftWallContacts = 0;
+      this.localState.rightWallContacts = 0;
+    });
+
     this.matter.world.on('afterupdate', () => {
       const b = this.localBunny?.matterBody;
       if (this.localBunny && b) {
@@ -373,50 +384,61 @@ init(data: GameSceneInitData): void {
 
     this.matter.world.on('collisionstart', (event: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
       for (const pair of event.pairs) {
-        this.handleSensorPair(pair.bodyA, pair.bodyB, 1);
-        this.handleSensorPair(pair.bodyB, pair.bodyA, 1);
+        this.handleBouncePair(pair.bodyA, pair.bodyB);
+        this.handleBouncePair(pair.bodyB, pair.bodyA);
       }
     });
 
-    this.matter.world.on('collisionend', (event: Phaser.Physics.Matter.Events.CollisionEndEvent) => {
+    this.matter.world.on('collisionactive', (event: Phaser.Physics.Matter.Events.CollisionActiveEvent) => {
       for (const pair of event.pairs) {
-        this.handleSensorPair(pair.bodyA, pair.bodyB, -1);
-        this.handleSensorPair(pair.bodyB, pair.bodyA, -1);
+        this.recordActiveSensorPair(pair.bodyA, pair.bodyB);
+        this.recordActiveSensorPair(pair.bodyB, pair.bodyA);
       }
     });
   }
 
-  private handleSensorPair(sensor: MatterJS.BodyType, other: MatterJS.BodyType, delta: number): void {
+  private handleBouncePair(sensor: MatterJS.BodyType, other: MatterJS.BodyType): void {
+    const bunnyBody = this.localBunny?.matterBody;
+    if (!this.localBunny || !bunnyBody || other.isSensor) return;
+    if (sensor.label !== 'bunny_foot' || other.label !== 'bouncy_mushroom' || this.localState.finished) {
+      return;
+    }
+
+    this.matter.body.setVelocity(bunnyBody, {
+      x: bunnyBody.velocity.x,
+      y: -14.2,
+    });
+    this.localState.coyoteUntil = 0;
+    this.localState.justJumpedUntil = this.time.now + 150;
+    this.audio?.playBounce(this.localBunny.x, this.localBunny.y);
+    this.sparkleEmitter.emitParticleAt(this.localBunny.x, this.localBunny.y + 14, 10);
+    const sprite = this.bodyToSprite.get(other.id);
+    if (sprite) {
+      this.tweens.add({
+        targets: sprite,
+        scaleX: 1.25,
+        scaleY: 0.68,
+        duration: 90,
+        yoyo: true,
+      });
+    }
+  }
+
+  private recordActiveSensorPair(sensor: MatterJS.BodyType, other: MatterJS.BodyType): void {
     const bunnyBody = this.localBunny?.matterBody;
     if (!this.localBunny || !bunnyBody || other.isSensor) return;
 
     if (sensor.label === 'bunny_foot') {
-      this.localState.groundContacts = Math.max(0, this.localState.groundContacts + delta);
+      this.localState.groundContacts++;
       if (other.label === 'ice_platform') {
-        this.localState.iceContacts = Math.max(0, this.localState.iceContacts + delta);
+        this.localState.iceContacts++;
       }
-      if (delta > 0 && other.label === 'bouncy_mushroom' && !this.localState.finished) {
-        this.matter.body.setVelocity(bunnyBody, {
-          x: bunnyBody.velocity.x,
-          y: -14.2,
-        });
-        this.audio?.playBounce(this.localBunny.x, this.localBunny.y);
-        this.sparkleEmitter.emitParticleAt(this.localBunny.x, this.localBunny.y + 14, 10);
-        const sprite = this.bodyToSprite.get(other.id);
-        if (sprite) {
-          this.tweens.add({
-            targets: sprite,
-            scaleX: 1.25,
-            scaleY: 0.68,
-            duration: 90,
-            yoyo: true,
-          });
-        }
+    } else if (other.label !== 'remote_bunny') {
+      if (sensor.label === 'bunny_wall_l') {
+        this.localState.leftWallContacts++;
+      } else if (sensor.label === 'bunny_wall_r') {
+        this.localState.rightWallContacts++;
       }
-    } else if (sensor.label === 'bunny_wall_l') {
-      this.localState.leftWallContacts = Math.max(0, this.localState.leftWallContacts + delta);
-    } else if (sensor.label === 'bunny_wall_r') {
-      this.localState.rightWallContacts = Math.max(0, this.localState.rightWallContacts + delta);
     }
   }
 
@@ -424,6 +446,9 @@ init(data: GameSceneInitData): void {
     switch (msg.type) {
       case 'welcome':
         this.applyWelcome(msg);
+        break;
+      case 'waiting_start':
+        this.applyWaitingStart(msg);
         break;
       case 'round_start':
         this.applyRoundStart(msg);
@@ -508,12 +533,23 @@ init(data: GameSceneInitData): void {
     }
   }
 
+  private resetContactState(): void {
+    this.localState.groundContacts = 0;
+    this.localState.iceContacts = 0;
+    this.localState.leftWallContacts = 0;
+    this.localState.rightWallContacts = 0;
+    this.localState.coyoteUntil = 0;
+    this.localState.jumpBufferUntil = 0;
+    this.localState.justJumpedUntil = 0;
+  }
+
   private applyWelcome(msg: WelcomeMessage): void {
     this.selfUsername = msg.selfUsername;
     this.phase = msg.phase;
-    this.carrotPickupSent = false;
-    this.stumpReachSent = false;
+    this.lastCarrotAttemptAt = 0;
+    this.lastStumpAttemptAt = 0;
     this.spawnGraceUntil = Date.now() + 1200;
+    this.resetContactState();
 
     this.uiCallbacks?.onSelfUsernameAssigned?.(msg.selfUsername);
     this.uiCallbacks?.onRoomUpdated?.({
@@ -563,11 +599,43 @@ init(data: GameSceneInitData): void {
     }
   }
 
+  private applyWaitingStart(msg: Extract<ServerMessage, { type: 'waiting_start' }>): void {
+    this.phase = 'waiting';
+    this.lastCarrotAttemptAt = 0;
+    this.lastStumpAttemptAt = 0;
+    this.spawnGraceUntil = Date.now() + 1200;
+    this.resetContactState();
+
+    if (msg.roomName && msg.roomPlayers !== undefined && msg.maxPlayers !== undefined) {
+      this.uiCallbacks?.onRoomUpdated?.({
+        roomId: msg.roomId || '',
+        roomName: msg.roomName,
+        roomPlayers: msg.roomPlayers,
+        maxPlayers: msg.maxPlayers,
+      });
+    }
+
+    this.loadMap(msg.map);
+    this.updateShaman(null);
+    this.uiCallbacks?.onRoundStart?.({
+      phase: 'waiting',
+      map: msg.map,
+      shaman: null,
+      roundEndsAt: msg.roundEndsAt,
+      isShaman: false,
+    });
+
+    this.resetBunniesToSpawn(msg.map, msg.players);
+    this.stumpHint?.setText('Waiting for players...');
+    this.showBanner('Waiting for players... Next round starts soon!');
+  }
+
   private applyRoundStart(msg: Extract<ServerMessage, { type: 'round_start' }>): void {
     this.phase = 'playing';
-    this.carrotPickupSent = false;
-    this.stumpReachSent = false;
+    this.lastCarrotAttemptAt = 0;
+    this.lastStumpAttemptAt = 0;
     this.spawnGraceUntil = Date.now() + 1200;
+    this.resetContactState();
 
     this.loadMap(msg.map);
     this.updateShaman(msg.shaman);
@@ -579,9 +647,16 @@ init(data: GameSceneInitData): void {
       isShaman: this.isLocalShaman(),
     });
 
-    const selfSpawn = msg.players?.find((p) => p.username === this.selfUsername);
-    const spawnX = selfSpawn?.x ?? msg.map.spawn.x;
-    const spawnY = selfSpawn?.y ?? msg.map.spawn.y;
+    this.resetBunniesToSpawn(msg.map, msg.players);
+
+    const shamanTag = msg.shaman ? ` · Shaman: ${msg.shaman}` : '';
+    this.showBanner(`${msg.map.name}${shamanTag}`);
+  }
+
+  private resetBunniesToSpawn(map: MapData, players?: PlayerSnapshot[]): void {
+    const selfSpawn = players?.find((p) => p.username === this.selfUsername);
+    const spawnX = selfSpawn?.x ?? map.spawn.x;
+    const spawnY = selfSpawn?.y ?? map.spawn.y;
 
     if (this.localBunny?.matterBody) {
       this.matter.body.setPosition(this.localBunny.matterBody, { x: spawnX, y: spawnY });
@@ -594,9 +669,9 @@ init(data: GameSceneInitData): void {
     }
 
     for (const rb of this.remoteBunnies.values()) {
-      const remoteSpawn = msg.players?.find((p) => p.username === rb.username);
-      const rx = remoteSpawn?.x ?? msg.map.spawn.x;
-      const ry = remoteSpawn?.y ?? msg.map.spawn.y;
+      const remoteSpawn = players?.find((p) => p.username === rb.username);
+      const rx = remoteSpawn?.x ?? map.spawn.x;
+      const ry = remoteSpawn?.y ?? map.spawn.y;
       rb.hasCarrot = false;
       rb.finished = false;
       rb.setVisible(true);
@@ -609,13 +684,11 @@ init(data: GameSceneInitData): void {
         rb.matterBody.isSensor = true;
       }
     }
-
-    const shamanTag = msg.shaman ? ` · Shaman: ${msg.shaman}` : '';
-    this.showBanner(`${msg.map.name}${shamanTag}`);
   }
 
   private loadMap(map: MapData): void {
     this.currentMap = map;
+    this.resetContactState();
 
     for (const b of this.staticBodies) {
       this.matter.world.remove(b);
@@ -1047,7 +1120,6 @@ init(data: GameSceneInitData): void {
     if (msg.username === this.selfUsername && this.carrotSprite) {
       this.carrotSprite.setAlpha(0.28);
       this.localState.hasCarrot = true;
-      this.carrotPickupSent = true;
       this.localBunny?.carrotSprite.setVisible(true);
       this.stumpHint?.setText('Bring Carrot to Stump! 🥕');
       this.showBanner('Golden Carrot Collected! 🥕');
@@ -1061,7 +1133,6 @@ init(data: GameSceneInitData): void {
 
     if (msg.username === this.selfUsername) {
       this.localState.finished = true;
-      this.stumpReachSent = true;
       this.localBunny?.setVisible(false);
       this.stumpHint?.setText('Stump Nest');
       this.showBanner(`Placed #${msg.place} in the Stump Nest! 🥕`);
@@ -1087,12 +1158,13 @@ init(data: GameSceneInitData): void {
     this.matter.body.setPosition(this.localBunny.matterBody, { x: msg.x, y: msg.y });
     this.matter.body.setVelocity(this.localBunny.matterBody, { x: 0, y: 0 });
     this.localState.hasCarrot = false;
-    this.carrotPickupSent = false;
-    this.stumpReachSent = false;
+    this.lastCarrotAttemptAt = 0;
+    this.lastStumpAttemptAt = 0;
+    this.resetContactState();
     this.spawnGraceUntil = Date.now() + 1200;
     this.localBunny.carrotSprite.setVisible(false);
     this.carrotSprite?.setAlpha(1);
-    this.stumpHint?.setText('Stump Nest');
+    this.stumpHint?.setText(this.phase === 'waiting' ? 'Waiting for players...' : 'Stump Nest');
     this.dustEmitter.emitParticleAt(msg.x, msg.y + 16, 10);
   }
 
@@ -1256,8 +1328,10 @@ init(data: GameSceneInitData): void {
       return;
     }
 
+    const now = Date.now();
+
     // Collect the golden carrot.
-    if (!this.localState.hasCarrot && !this.carrotPickupSent && this.carrotSprite) {
+    if (!this.localState.hasCarrot && this.carrotSprite && now - this.lastCarrotAttemptAt >= 350) {
       const distanceToCarrot = Phaser.Math.Distance.Between(
         bunny.x,
         bunny.y,
@@ -1265,14 +1339,14 @@ init(data: GameSceneInitData): void {
         this.currentMap.carrot.y
       );
 
-      if (distanceToCarrot < 38) {
-        this.carrotPickupSent = true;
+      if (distanceToCarrot < 44) {
+        this.lastCarrotAttemptAt = now;
         this.socket?.send({ type: 'carrot_pickup' });
       }
     }
 
     // Return to the stump with the carrot.
-    if (this.localState.hasCarrot && !this.stumpReachSent) {
+    if (this.localState.hasCarrot && now - this.lastStumpAttemptAt >= 350) {
       const distanceToStump = Phaser.Math.Distance.Between(
         bunny.x,
         bunny.y,
@@ -1280,7 +1354,7 @@ init(data: GameSceneInitData): void {
         this.currentMap.stump.y
       );
 
-      if (distanceToStump < 55) {
+      if (distanceToStump < 68) {
         if (this.isLocalShaman()) {
           const otherBunniesStillOutside = Array.from(
             this.remoteBunnies.values()
@@ -1288,10 +1362,14 @@ init(data: GameSceneInitData): void {
 
           if (otherBunniesStillOutside) {
             this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
+            if (now - this.lastShamanWaitBannerAt > 2500) {
+              this.lastShamanWaitBannerAt = now;
+              this.showBanner('Shaman enters last! Wait for other bunnies 🐰');
+            }
             return;
           }
         }
-        this.stumpReachSent = true;
+        this.lastStumpAttemptAt = now;
         this.socket?.send({ type: 'stump_reach' });
       }
     }
@@ -1319,7 +1397,7 @@ init(data: GameSceneInitData): void {
     const onLeftWall = !onGround && state.leftWallContacts > 0;
     const onRightWall = !onGround && state.rightWallContacts > 0;
 
-    if (onGround) {
+    if (onGround && time >= state.justJumpedUntil && body.velocity.y >= -0.6) {
       state.coyoteUntil = time + 115;
     }
     if (jumpPressed) {
@@ -1347,11 +1425,12 @@ init(data: GameSceneInitData): void {
       if (vy > 2.2) vy = 2.2;
     }
 
-    if (time <= state.jumpBufferUntil) {
+    if (time <= state.jumpBufferUntil && time >= state.justJumpedUntil) {
       if (time <= state.coyoteUntil) {
         vy = -10.4;
         state.jumpBufferUntil = 0;
         state.coyoteUntil = 0;
+        state.justJumpedUntil = time + 150;
         this.audio?.playHop(bunny.x, bunny.y);
         this.dustEmitter.emitParticleAt(bunny.x, bunny.y + 20, 6);
       } else if (onLeftWall || onRightWall) {
@@ -1359,6 +1438,7 @@ init(data: GameSceneInitData): void {
         vx = onLeftWall ? 5.8 : -5.8;
         state.facing = onLeftWall ? 1 : -1;
         state.jumpBufferUntil = 0;
+        state.justJumpedUntil = time + 150;
         this.audio?.playHop(bunny.x, bunny.y);
         this.dustEmitter.emitParticleAt(bunny.x + (onLeftWall ? -12 : 12), bunny.y, 6);
       }

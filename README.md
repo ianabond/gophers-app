@@ -24,7 +24,7 @@ Bunny Burrow is a real-time multiplayer 2D platformer powered by **Go WebSockets
 
 ### Multiplayer Architecture & Features
 - **Shared Space & Auto-Scaling Rooms:** Each room supports up to **8 players**. When a room fills up, a new room is automatically created for incoming players. The top HUD displays the player's current room and occupancy (e.g., `Room 1 (3/8)`).
-- **20-Second Waiting Phase:** When the first player creates a room, a 20-second waiting phase runs so other players joining shortly after can start Round 1 together (or Round 1 starts immediately once 8/8 join). If the 20 seconds finish with 1 player, Round 1 starts anyway and any late joiner (`< 8` players) joins the same room so they play together on the next round.
+- **20-Second Waiting Phase:** Whenever a room has players (`> 0` users), a 20-second waiting phase runs before Round 1 and between each round so players can gather and start together. If only 1 player is present when the 20 seconds end, the round starts anyway and any late joiner (`< 8` players) enters the same room.
 - **Goroutine-Driven Room Loop:** Every active room runs its own dedicated Go goroutine (`app/rooms/room.go`) that processes joins, leaves, player state updates, collisions, shaman builds, and 25 Hz world snapshots without blocking other rooms, shutting down cleanly when empty.
 - **Real-Time Player Interactions:**
   - **Player Collisions:** Bunnies physically collide with each other in the shared world, with server-resolved collision bumps and Matter.js contact response.
