@@ -2,6 +2,25 @@ package game
 
 import "math/rand/v2"
 
+// WaitingLobbyMap is a flat, cozy gathering area with no carrot or stump objective.
+var WaitingLobbyMap = MapData{
+	ID:               "meadow-lobby",
+	Name:             "Meadow Lobby",
+	Theme:            "meadow",
+	RoundDurationSec: 20,
+	Spawn:            Point{X: 800, Y: 540},
+	Carrot:           Point{X: -1000, Y: -1000},
+	Stump:            Point{X: -1000, Y: -1000},
+	Platforms: []PlatformData{
+		{X: 800, Y: 620, W: 1400, H: 60, Material: "grass", Angle: 0},
+		{X: 340, Y: 480, W: 220, H: 26, Material: "wood", Angle: 0},
+		{X: 1260, Y: 480, W: 220, H: 26, Material: "wood", Angle: 0},
+		{X: 800, Y: 370, W: 280, H: 36, Material: "grass", Angle: 0},
+		{X: 520, Y: 565, W: 72, H: 36, Material: "bouncy", Angle: 0},
+		{X: 1080, Y: 565, W: 72, H: 36, Material: "bouncy", Angle: 0},
+	},
+}
+
 // AllMaps lists every playable map in the game.
 var AllMaps = []MapData{
 	{

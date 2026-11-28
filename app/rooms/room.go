@@ -491,8 +491,7 @@ func (r *Room) stepTick(now time.Time) {
 }
 
 func (r *Room) startWaitingPhase(now time.Time) {
-	r.currentMap = game.PickRandomMap(r.lastMapID)
-	r.lastMapID = r.currentMap.ID
+	r.currentMap = game.WaitingLobbyMap
 	r.phase = game.PhaseWaiting
 	r.roundEndsAt = now.Add(r.waitingDuration)
 	r.shamanUsername = ""

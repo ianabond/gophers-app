@@ -61,6 +61,9 @@ func TestRoomCapacityOverflowAndCleanup(t *testing.T) {
 		if welcome.Phase != "waiting" {
 			t.Fatalf("player %d expected waiting phase on join, got %q", i, welcome.Phase)
 		}
+		if welcome.Map == nil || welcome.Map.ID != "meadow-lobby" {
+			t.Fatalf("player %d expected meadow-lobby waiting map, got %+v", i, welcome.Map)
+		}
 	}
 
 	// 9th guest should overflow into a newly created Room 2.
@@ -169,6 +172,9 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 			t.Fatalf("did not receive round_start after finishing: %v", err)
 		}
 		if msg.Type == "waiting_start" {
+			if msg.Map == nil || msg.Map.ID != "meadow-lobby" {
+				t.Fatalf("expected meadow-lobby during waiting_start, got %+v", msg.Map)
+			}
 			sawWaitingBetweenRounds = true
 		}
 		if msg.Type == "round_start" {

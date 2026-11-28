@@ -710,9 +710,13 @@ init(data: GameSceneInitData): void {
     }
 
     this.carrotSprite?.destroy();
+    this.carrotSprite = null;
     this.stumpSprite?.destroy();
+    this.stumpSprite = null;
     this.stumpHint?.destroy();
+    this.stumpHint = null;
     this.ambientEmitter?.destroy();
+    this.ambientEmitter = null;
 
     this.buildParallaxBackground(map.theme);
 
@@ -741,6 +745,10 @@ init(data: GameSceneInitData): void {
         this.platformDisplays.push(sprite);
       }
     });
+
+    if (this.phase === 'waiting' || map.id === 'meadow-lobby') {
+      return;
+    }
 
     this.carrotSprite = this.add.image(map.carrot.x, map.carrot.y, 'carrot').setDepth(7);
     this.tweens.add({
