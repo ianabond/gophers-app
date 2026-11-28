@@ -170,3 +170,50 @@ func TestPlayerCollisionAndRoundRestart(t *testing.T) {
 		}
 	}
 }
+
+func TestWebSocketOriginChecks(t *testing.T) {
+	manager := NewManager()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+		network.ServeWS(manager, w, r)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?username=OriginTester&furColor=%23f8efe4"
+
+	cases := []struct {
+		name      string
+		origin    string
+		hostHdr   string
+		wantAllow bool
+	}{
+		{name: "localhost_8080", origin: "http://localhost:8080", hostHdr: "localhost", wantAllow: true},
+		{name: "lan_ip_port_stripped_by_nginx", origin: "http://192.168.1.42:8080", hostHdr: "192.168.1.42", wantAllow: true},
+		{name: "prod_https_wss", origin: "https://bunnyburrowgame.fun", hostHdr: "bunnyburrowgame.fun", wantAllow: true},
+		{name: "cross_origin_rejected", origin: "https://evil.example", hostHdr: "bunnyburrowgame.fun", wantAllow: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hdr := http.Header{}
+			hdr.Set("Origin", tc.origin)
+			hdr.Set("Host", tc.hostHdr)
+			conn, resp, err := websocket.DefaultDialer.Dial(wsURL, hdr)
+			if tc.wantAllow {
+				if err != nil {
+					t.Fatalf("expected handshake to succeed for %s, got err=%v", tc.name, err)
+				}
+				_ = conn.Close()
+			} else {
+				if err == nil {
+					_ = conn.Close()
+					t.Fatalf("expected handshake to be rejected for %s", tc.name)
+				}
+				if resp != nil && resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("expected 403 Forbidden, got %d", resp.StatusCode)
+				}
+			}
+		})
+	}
+}

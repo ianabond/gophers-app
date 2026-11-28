@@ -3,6 +3,7 @@ package network
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,6 +31,17 @@ type RoomJoiner interface {
 	JoinGuest(c *Client, username, furColor string) (RoomHandle, error)
 }
 
+func extractHostname(hostPort string) string {
+	hostPort = strings.TrimSpace(hostPort)
+	if hostPort == "" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(hostPort); err == nil {
+		return strings.Trim(host, "[]")
+	}
+	return strings.Trim(hostPort, "[]")
+}
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -40,15 +52,21 @@ var upgrader = websocket.Upgrader{
 		}
 		u, err := url.Parse(origin)
 		if err != nil {
+			log.Printf("websocket rejected invalid origin %q: %v", origin, err)
 			return false
 		}
-		// Allow same-host connections (both ws:// over http and wss:// over https)
-		// as well as local development servers.
-		if strings.EqualFold(u.Host, r.Host) {
+		originHost := extractHostname(u.Host)
+		if originHost == "localhost" || originHost == "127.0.0.1" || originHost == "::1" {
 			return true
 		}
-		host := u.Hostname()
-		return host == "localhost" || host == "127.0.0.1"
+		reqHost := extractHostname(r.Host)
+		fwdHost := extractHostname(r.Header.Get("X-Forwarded-Host"))
+		if (reqHost != "" && strings.EqualFold(originHost, reqHost)) ||
+			(fwdHost != "" && strings.EqualFold(originHost, fwdHost)) {
+			return true
+		}
+		log.Printf("websocket rejected origin=%q (host=%q, x-forwarded-host=%q)", origin, r.Host, r.Header.Get("X-Forwarded-Host"))
+		return false
 	},
 }
 
@@ -120,6 +138,9 @@ func (c *Client) readPump(room RoomHandle) {
 	for {
 		_, payload, err := c.Conn.ReadMessage()
 		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
+				log.Printf("websocket read error (%s): %v", c.Username, err)
+			}
 			break
 		}
 		var msg ClientMessage

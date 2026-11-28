@@ -101,6 +101,7 @@ export function PhaserCanvas({
 
     return () => {
       onSceneReady(null);
+      scene.closeSocket();
       game.destroy(true);
     };
   }, [username, furColor, audio, callbacksRef, onSceneReady]);

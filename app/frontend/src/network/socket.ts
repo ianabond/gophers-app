@@ -58,15 +58,21 @@ export class GameSocket {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       this.ws = null;
       if (!this.closedByClient) {
+        console.warn('[ws] closed unexpectedly', {
+          url: ws.url,
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+        });
         this.onStatusChange?.('disconnected');
       }
     };
 
-    ws.onerror = () => {
-      // onclose handles state transition cleanly.
+    ws.onerror = (event) => {
+      console.warn('[ws] error', event);
     };
   }
 

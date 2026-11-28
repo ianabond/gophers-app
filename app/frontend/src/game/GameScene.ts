@@ -283,10 +283,13 @@ init(data: GameSceneInitData): void {
     });
     this.socket.connect();
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.socket?.close();
-      this.socket = null;
-    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.closeSocket());
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.closeSocket());
+  }
+
+  public closeSocket(): void {
+    this.socket?.close();
+    this.socket = null;
   }
 
 
