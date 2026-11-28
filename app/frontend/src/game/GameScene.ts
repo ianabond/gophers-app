@@ -1329,6 +1329,8 @@ init(data: GameSceneInitData): void {
     }
   }
 
+  private lastMissingCarrotBannerAt = 0;
+
   private checkLocalObjectives(): void {
     const bunny = this.localBunny;
 
@@ -1337,48 +1339,48 @@ init(data: GameSceneInitData): void {
     }
 
     const now = Date.now();
+    const bunnyBounds = new Phaser.Geom.Rectangle(bunny.x - 14, bunny.y - 20, 28, 40);
 
-    // Collect the golden carrot.
-    if (!this.localState.hasCarrot && this.carrotSprite && now - this.lastCarrotAttemptAt >= 350) {
-      const distanceToCarrot = Phaser.Math.Distance.Between(
-        bunny.x,
-        bunny.y,
-        this.currentMap.carrot.x,
-        this.currentMap.carrot.y
-      );
-
-      if (distanceToCarrot < 44) {
+    // Collect the golden carrot if the bunny touches anywhere on the carrot sprite.
+    if (!this.localState.hasCarrot && this.carrotSprite && now - this.lastCarrotAttemptAt >= 200) {
+      const carrotBounds = this.carrotSprite.getBounds();
+      if (Phaser.Geom.Intersects.RectangleToRectangle(bunnyBounds, carrotBounds)) {
         this.lastCarrotAttemptAt = now;
         this.socket?.send({ type: 'carrot_pickup' });
       }
     }
 
-    // Return to the stump with the carrot.
-    if (this.localState.hasCarrot && now - this.lastStumpAttemptAt >= 350) {
-      const distanceToStump = Phaser.Math.Distance.Between(
-        bunny.x,
-        bunny.y,
-        this.currentMap.stump.x,
-        this.currentMap.stump.y
-      );
-
-      if (distanceToStump < 68) {
-        if (this.isLocalShaman()) {
-          const otherBunniesStillOutside = Array.from(
-            this.remoteBunnies.values()
-          ).some((otherBunny) => !otherBunny.finished);
-
-          if (otherBunniesStillOutside) {
-            this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
-            if (now - this.lastShamanWaitBannerAt > 2500) {
-              this.lastShamanWaitBannerAt = now;
-              this.showBanner('Shaman enters last! Wait for other bunnies 🐰');
-            }
-            return;
+    // Enter the stump nest if the bunny touches anywhere on the stump sprite.
+    if (this.stumpSprite) {
+      const stumpBounds = this.stumpSprite.getBounds();
+      if (Phaser.Geom.Intersects.RectangleToRectangle(bunnyBounds, stumpBounds)) {
+        if (!this.localState.hasCarrot) {
+          this.stumpHint?.setText('Grab the Golden Carrot first! 🥕');
+          if (now - this.lastMissingCarrotBannerAt > 2500) {
+            this.lastMissingCarrotBannerAt = now;
+            this.showBanner('Grab the Golden Carrot first! 🥕');
           }
+          return;
         }
-        this.lastStumpAttemptAt = now;
-        this.socket?.send({ type: 'stump_reach' });
+
+        if (now - this.lastStumpAttemptAt >= 200) {
+          if (this.isLocalShaman()) {
+            const otherBunniesStillOutside = Array.from(
+              this.remoteBunnies.values()
+            ).some((otherBunny) => !otherBunny.finished);
+
+            if (otherBunniesStillOutside) {
+              this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
+              if (now - this.lastShamanWaitBannerAt > 2500) {
+                this.lastShamanWaitBannerAt = now;
+                this.showBanner('Shaman enters last! Wait for other bunnies 🐰');
+              }
+              return;
+            }
+          }
+          this.lastStumpAttemptAt = now;
+          this.socket?.send({ type: 'stump_reach' });
+        }
       }
     }
   }
