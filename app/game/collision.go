@@ -81,14 +81,14 @@ func ResolvePlayerCollisions(players []*Player, lastPairs map[string]time.Time, 
 }
 
 // ResolveBoop calculates knockback impulses for nearby players when a bunny uses Boop.
-func ResolveBoop(from *Player, players []*Player, now time.Time) []Impulse {
+func ResolveBoop(from *Player, players []*Player, _ time.Time) []Impulse {
 	if from == nil || from.Finished {
 		return nil
 	}
 
 	var impulses []Impulse
 	for _, p := range players {
-		if p == from || p.Finished || now.Before(p.SpawnProtectedUntil) {
+		if p == from || p.Finished {
 			continue
 		}
 
@@ -107,11 +107,11 @@ func ResolveBoop(from *Player, players []*Player, now time.Time) []Impulse {
 			dirX = dx / dist
 		}
 
-		force := 5.5 + 3.5*(1-dist/BoopRadius)
+		force := 7.5 + 4.5*(1-dist/BoopRadius)
 		impulses = append(impulses, Impulse{
 			Username: p.Username,
 			VX:       dirX * force,
-			VY:       -4.8,
+			VY:       -6.2,
 		})
 	}
 

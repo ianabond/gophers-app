@@ -169,6 +169,7 @@ export class GameScene extends Phaser.Scene {
     coyoteUntil: 0,
     jumpBufferUntil: 0,
     justJumpedUntil: 0,
+    knockbackUntil: 0,
     lastBoopAt: 0,
     lastStateSentAt: 0,
     lastPreviewSentAt: 0,
@@ -540,6 +541,7 @@ init(data: GameSceneInitData): void {
     this.localState.coyoteUntil = 0;
     this.localState.jumpBufferUntil = 0;
     this.localState.justJumpedUntil = 0;
+    this.localState.knockbackUntil = 0;
   }
 
   private setItemCounts(items?: Partial<ItemCounts>): void {
@@ -1169,6 +1171,9 @@ init(data: GameSceneInitData): void {
           x: hit.vx,
           y: hit.vy,
         });
+        this.localState.knockbackUntil = this.time.now + 280;
+        this.localState.coyoteUntil = 0;
+        this.localState.justJumpedUntil = this.time.now + 150;
       }
     }
   }
@@ -1183,6 +1188,7 @@ init(data: GameSceneInitData): void {
           x: hit.vx,
           y: hit.vy,
         });
+        this.localState.knockbackUntil = this.time.now + 180;
       }
     }
   }
@@ -1362,8 +1368,18 @@ init(data: GameSceneInitData): void {
     let vx = body.velocity.x;
     let vy = body.velocity.y;
     const targetSpeed = 5.4;
+    const inKnockback = time < state.knockbackUntil;
 
-    if (moveLeft) {
+    if (inKnockback) {
+      // Let knockback carry without immediately getting erased by ground movement/friction.
+      if (moveLeft) {
+        state.facing = -1;
+        vx = Phaser.Math.Linear(vx, -targetSpeed, Math.min(1, 0.06 * dtFactor));
+      } else if (moveRight) {
+        state.facing = 1;
+        vx = Phaser.Math.Linear(vx, targetSpeed, Math.min(1, 0.06 * dtFactor));
+      }
+    } else if (moveLeft) {
       state.facing = -1;
       const accel = onIce ? 0.16 : onGround ? 0.95 : 0.55;
       vx = Phaser.Math.Linear(vx, -targetSpeed, Math.min(1, accel * dtFactor));
