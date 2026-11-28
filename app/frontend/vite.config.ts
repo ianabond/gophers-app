@@ -7,6 +7,15 @@ export default defineConfig({
 
   base: '/static/',
 
+  server: {
+    proxy: {
+      '/ws': {
+        target: 'http://localhost:8000',
+        ws: true,
+      },
+    },
+  },
+
   build: {
     outDir: '../static',
     emptyOutDir: true,

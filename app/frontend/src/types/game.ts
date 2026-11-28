@@ -96,12 +96,60 @@ export interface ChatEntry {
   isSystem: boolean;
 }
 
+export interface Impulse {
+  username: string;
+  vx: number;
+  vy: number;
+}
+
+export interface RoomInfo {
+  roomId: string;
+  roomName: string;
+  roomPlayers: number;
+  maxPlayers: number;
+}
+
+export type ClientMessage =
+  | {
+      type: 'state';
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      facing: 1 | -1;
+      anim: AnimState;
+    }
+  | { type: 'carrot_pickup' }
+  | { type: 'stump_reach' }
+  | { type: 'respawn_request' }
+  | { type: 'boop' }
+  | {
+      type: 'shaman_spawn';
+      itemType: Exclude<ShamanItemType, 'deleter'>;
+      x: number;
+      y: number;
+      angle: number;
+    }
+  | { type: 'shaman_remove'; objectId: string }
+  | {
+      type: 'shaman_preview';
+      itemType: ShamanItemType;
+      x: number;
+      y: number;
+      angle: number;
+    }
+  | { type: 'emote'; emote: EmoteType };
+
 export type ServerMessage =
   | {
       type: 'welcome';
       selfUsername: string;
+      roomId: string;
+      roomName: string;
+      roomPlayers: number;
+      maxPlayers: number;
       roundNumber: number;
-      phase: 'playing' | 'intermission';
+      phase: 'waiting' | 'playing' | 'intermission';
       map: MapData;
       shaman: string | null;
       roundEndsAt: number;
@@ -114,12 +162,29 @@ export type ServerMessage =
       map: MapData;
       shaman: string | null;
       roundEndsAt: number;
+      players?: PlayerSnapshot[];
     }
   | { type: 'round_ended'; roundNumber: number; nextRoundAt: number }
   | { type: 'round_ending_soon'; roundEndsAt: number }
-  | { type: 'player_joined'; player: PlayerSnapshot; shaman: string | null }
-  | { type: 'player_left'; username: string; shaman: string | null }
-  | { type: 'snapshot'; players: PlayerSnapshot[]; crates: CrateSnapshot[]; serverTime: number }
+  | {
+      type: 'player_joined';
+      player: PlayerSnapshot;
+      shaman: string | null;
+      roomId?: string;
+      roomName?: string;
+      roomPlayers?: number;
+      maxPlayers?: number;
+    }
+  | {
+      type: 'player_left';
+      username: string;
+      shaman: string | null;
+      roomId?: string;
+      roomName?: string;
+      roomPlayers?: number;
+      maxPlayers?: number;
+    }
+  | { type: 'snapshot'; players: PlayerSnapshot[]; crates?: CrateSnapshot[]; serverTime: number }
   | { type: 'carrot_picked'; username: string; x: number; y: number }
   | {
       type: 'bunny_nested';
@@ -137,7 +202,13 @@ export type ServerMessage =
       from: string;
       x: number;
       y: number;
-      impulses: Array<{ username: string; vx: number; vy: number }>;
+      impulses: Impulse[];
+    }
+  | {
+      type: 'player_collision';
+      x: number;
+      y: number;
+      impulses: Impulse[];
     }
   | { type: 'object_spawned'; object: ShamanObject; shaman: string }
   | { type: 'object_removed'; id: string }

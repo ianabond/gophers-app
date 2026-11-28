@@ -4,6 +4,7 @@ import { PhaserCanvas } from './components/PhaserCanvas';
 import { ShamanBar } from './components/ShamanBar';
 import { SpatialAudioEngine } from './game/audio';
 import type { GameScene, GameUiCallbacks } from './game/GameScene';
+import type { ConnectionStatus } from './network/socket';
 import type { ShamanItemType } from './types/game';
 
 const COLORS = [
@@ -19,12 +20,20 @@ const COLORS = [
 
 export function App() {
   const [username, setUsername] = useState('');
+  const [displayUsername, setDisplayUsername] = useState('');
   const [furColor, setFurColor] = useState(COLORS[0]);
   const [playing, setPlaying] = useState(false);
 
-  const [mapName, setMapName] = useState('Sunlit Meadow');
-  const [secondsLeft, setSecondsLeft] = useState(75);
-  const [isShaman, setIsShaman] = useState(true);
+  const [mapName, setMapName] = useState('Connecting...');
+  const [phase, setPhase] = useState<'waiting' | 'playing' | 'intermission'>('waiting');
+  const [secondsLeft, setSecondsLeft] = useState(20);
+  const [shamanName, setShamanName] = useState<string | null>(null);
+  const [isShaman, setIsShaman] = useState(false);
+  const [roomName, setRoomName] = useState('Joining room...');
+  const [roomPlayers, setRoomPlayers] = useState(0);
+  const [maxPlayers, setMaxPlayers] = useState(8);
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>('connecting');
   const [selectedItem, setSelectedItem] =
     useState<ShamanItemType>('plank');
   const [angleDeg, setAngleDeg] = useState(0);
@@ -38,12 +47,16 @@ export function App() {
   const callbacksRef = useRef<GameUiCallbacks>({});
 
   callbacksRef.current = {
-    onRoundStart: ({ map, roundEndsAt, isShaman: shaman }) => {
-      setMapName(map.name);
+    onRoundStart: ({ phase: nextPhase, map, shaman, roundEndsAt, isShaman: shamanFlag }) => {
+      setPhase(nextPhase);
+      if (map) {
+        setMapName(map.name);
+      }
       setSecondsLeft(
         Math.max(0, Math.ceil((roundEndsAt - Date.now()) / 1000))
       );
-      setIsShaman(shaman);
+      setShamanName(shaman);
+      setIsShaman(shamanFlag);
     },
 
     onRoundTimerUpdate: (endsAt) => {
@@ -52,8 +65,23 @@ export function App() {
       );
     },
 
-    onShamanChanged: (_shaman, shaman) => {
-      setIsShaman(shaman);
+    onShamanChanged: (shaman, shamanFlag) => {
+      setShamanName(shaman);
+      setIsShaman(shamanFlag);
+    },
+
+    onRoomUpdated: (room) => {
+      setRoomName(room.roomName);
+      setRoomPlayers(room.roomPlayers);
+      setMaxPlayers(room.maxPlayers);
+    },
+
+    onSelfUsernameAssigned: (assigned) => {
+      setDisplayUsername(assigned);
+    },
+
+    onConnectionStatusChanged: (status) => {
+      setConnectionStatus(status);
     },
 
     onShamanToolChanged: (item) => {
@@ -83,6 +111,7 @@ export function App() {
     const cleanUsername = username.trim()
     if (!cleanUsername) return;
     setUsername(cleanUsername)
+    setDisplayUsername(cleanUsername)
     audioRef.current.unlock();
     setPlaying(true);
   }
@@ -200,15 +229,30 @@ export function App() {
         </div>
 
         <div className="game-hud">
-          <span>🌿 {mapName}</span>
-          <span>⏱ {secondsLeft}s</span>
           <span>
-            ✨ {isShaman ? 'You are the Shaman!' : 'Shaman'}
+            🏠 {roomName} ({roomPlayers}/{maxPlayers})
           </span>
+          {phase === 'waiting' ? (
+            <span>⏳ Waiting for players ({secondsLeft}s)</span>
+          ) : (
+            <>
+              <span>🌿 {mapName}</span>
+              <span>⏱ {secondsLeft}s</span>
+              <span>
+                ✨{' '}
+                {isShaman
+                  ? 'You are the Shaman!'
+                  : `Shaman: ${shamanName || '—'}`}
+              </span>
+            </>
+          )}
           <span>
             <i style={{ backgroundColor: furColor }} />
-            {username}
+            {displayUsername || username}
           </span>
+          {connectionStatus !== 'connected' && (
+            <span>🔌 {connectionStatus}</span>
+          )}
         </div>
 
         <button

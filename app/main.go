@@ -3,9 +3,12 @@ package main
 import (
 	"log"
 	"net/http"
+
+	"gophers/network"
+	"gophers/rooms"
 )
 
-// adds nosniff to every response
+// nosniff adds X-Content-Type-Options: nosniff to every HTTP response.
 func nosniff(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -14,14 +17,20 @@ func nosniff(next http.Handler) http.Handler {
 }
 
 func main() {
+	roomManager := rooms.NewManager()
 	mux := http.NewServeMux()
 
-	// exactly "/" (the {$} stops it from matching every path)
+	// Exactly "/" (the {$} stops it from matching every path).
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./static/index.html")
 	})
 
-	// everything under /static/
+	// WebSocket endpoint for multiplayer gameplay (works over ws:// and wss://).
+	mux.HandleFunc("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+		network.ServeWS(roomManager, w, r)
+	})
+
+	// Everything under /static/.
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 
 	log.Println("listening on :8000")

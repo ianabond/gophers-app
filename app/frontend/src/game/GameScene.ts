@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-// import Matter from 'matter-js'; // removed unused import
+import { GameSocket, type ConnectionStatus } from '../network/socket';
 import type {
   AnimState,
   MapData,
   PlayerSnapshot,
+  RoomInfo,
   ServerMessage,
   ShamanItemType,
   ShamanObject,
@@ -14,105 +15,6 @@ import { drawPlatformTexture, ensureBunnyTexture, generateAllTextures } from './
 
 const WORLD_WIDTH = 1600;
 const WORLD_HEIGHT = 800;
-
-
-const LOCAL_MAPS: MapData[] = [
-  // 1. SUNLIT MEADOW — EASY
-  {
-    id: 'sunlit-meadow',
-    name: 'Sunlit Meadow',
-    theme: 'meadow',
-    roundDurationSec: 75,
-    spawn: { x: 160, y: 550 },
-    carrot: { x: 1380, y: 315 },
-    stump: { x: 250, y: 210 },
-    platforms: [
-      { x: 220, y: 620, w: 340, h: 48, material: 'grass', angle: 0 },
-      { x: 525, y: 545, w: 150, h: 26, material: 'wood', angle: -0.06 },
-      { x: 820, y: 590, w: 250, h: 46, material: 'grass', angle: 0 },
-      { x: 1085, y: 500, w: 72, h: 36, material: 'bouncy', angle: 0 },
-      { x: 1340, y: 375, w: 290, h: 46, material: 'grass', angle: 0 },
-      { x: 1030, y: 295, w: 170, h: 26, material: 'wood', angle: 0.05 },
-      { x: 720, y: 335, w: 185, h: 28, material: 'grass', angle: 0 },
-      { x: 290, y: 265, w: 280, h: 46, material: 'grass', angle: 0 },
-    ],
-  },
-
-  // 2. FROSTY PINE RIDGE — MEDIUM
-  {
-    id: 'frosty-pine-ridge',
-    name: 'Frosty Pine Ridge',
-    theme: 'frost',
-    roundDurationSec: 75,
-    spawn: { x: 160, y: 580 },
-    carrot: { x: 1400, y: 245 },
-    stump: { x: 210, y: 145 },
-    platforms: [
-      { x: 190, y: 650, w: 240, h: 38, material: 'stone', angle: 0 },
-      { x: 410, y: 555, w: 125, h: 22, material: 'ice', angle: -0.06 },
-      { x: 650, y: 465, w: 115, h: 22, material: 'ice', angle: 0.04 },
-      { x: 900, y: 525, w: 130, h: 24, material: 'stone', angle: 0 },
-      { x: 1130, y: 420, w: 120, h: 22, material: 'ice', angle: -0.04 },
-      { x: 1390, y: 300, w: 190, h: 30, material: 'stone', angle: 0 },
-      { x: 1120, y: 280, w: 100, h: 20, material: 'ice', angle: 0 },
-      { x: 850, y: 340, w: 110, h: 20, material: 'ice', angle: 0.05 },
-      { x: 580, y: 350, w: 100, h: 20, material: 'ice', angle: 0 },
-      { x: 340, y: 350, w: 110, h: 22, material: 'stone', angle: 0 },
-    ],
-  },
-
-  // 3. MUSHROOM CAVERN — HARD
-  {
-    id: 'mushroom-cavern',
-    name: 'Mushroom Cavern',
-    theme: 'cavern',
-    roundDurationSec: 75,
-    spawn: { x: 150, y: 580 },
-    carrot: { x: 1400, y: 190 },
-    stump: { x: 210, y: 125 },
-    platforms: [
-      { x: 180, y: 650, w: 220, h: 38, material: 'stone', angle: 0 },
-      { x: 370, y: 550, w: 85, h: 22, material: 'stone', angle: 0 },
-      { x: 570, y: 445, w: 90, h: 28, material: 'bouncy', angle: 0 },
-      { x: 770, y: 340, w: 100, h: 22, material: 'stone', angle: 0 },
-      { x: 970, y: 445, w: 90, h: 28, material: 'bouncy', angle: 0 },
-      { x: 1160, y: 335, w: 100, h: 22, material: 'stone', angle: 0 },
-      { x: 1400, y: 245, w: 190, h: 30, material: 'stone', angle: 0 },
-      { x: 1180, y: 205, w: 85, h: 20, material: 'stone', angle: 0 },
-      { x: 950, y: 245, w: 90, h: 22, material: 'bouncy', angle: 0 },
-      { x: 720, y: 180, w: 100, h: 22, material: 'stone', angle: 0 },
-      { x: 470, y: 260, w: 85, h: 22, material: 'bouncy', angle: 0 },
-      { x: 300, y: 350, w: 100, h: 22, material: 'stone', angle: 0 },
-    ],
-  },
-
-  // 4. TWILIGHT HOLLOW — VERY HARD / PARKOUR
-  {
-    id: 'twilight-hollow',
-    name: 'Twilight Hollow',
-    theme: 'twilight',
-    roundDurationSec: 90,
-    spawn: { x: 120, y: 620 },
-    carrot: { x: 1430, y: 165 },
-    stump: { x: 180, y: 110 },
-    platforms: [
-      { x: 140, y: 690, w: 160, h: 30, material: 'stone', angle: 0 },
-      { x: 300, y: 575, w: 75, h: 18, material: 'wood', angle: 0.04 },
-      { x: 470, y: 475, w: 70, h: 18, material: 'stone', angle: -0.05 },
-      { x: 640, y: 565, w: 75, h: 18, material: 'wood', angle: 0 },
-      { x: 810, y: 430, w: 65, h: 18, material: 'stone', angle: 0.05 },
-      { x: 980, y: 330, w: 70, h: 18, material: 'wood', angle: 0 },
-      { x: 1150, y: 420, w: 65, h: 18, material: 'stone', angle: -0.04 },
-      { x: 1320, y: 300, w: 75, h: 18, material: 'wood', angle: 0 },
-      { x: 1450, y: 210, w: 180, h: 28, material: 'stone', angle: 0 },
-      { x: 1220, y: 185, w: 65, h: 18, material: 'stone', angle: 0 },
-      { x: 1020, y: 120, w: 65, h: 18, material: 'wood', angle: 0 },
-      { x: 800, y: 220, w: 65, h: 18, material: 'stone', angle: 0 },
-      { x: 580, y: 135, w: 65, h: 18, material: 'wood', angle: 0 },
-      { x: 380, y: 240, w: 75, h: 18, material: 'stone', angle: 0 },
-    ],
-  },
-];
 
 
 interface ThemePalette {
@@ -169,6 +71,7 @@ const EMOTE_ICONS: Record<string, string> = {
 
 export interface GameUiCallbacks {
   onRoundStart?: (payload: {
+    phase: 'waiting' | 'playing' | 'intermission';
     map: MapData;
     shaman: string | null;
     roundEndsAt: number;
@@ -179,6 +82,9 @@ export interface GameUiCallbacks {
   onShamanToolChanged?: (itemType: ShamanItemType) => void;
   onShamanAngleChanged?: (deg: number) => void;
   onOnlineCountChanged?: (count: number) => void;
+  onRoomUpdated?: (room: RoomInfo) => void;
+  onSelfUsernameAssigned?: (username: string) => void;
+  onConnectionStatusChanged?: (status: ConnectionStatus) => void;
   onStatsUpdated?: (stats: { carrotsCollected: number; firstPlaces: number }) => void;
   onChatMessage?: (username: string, text: string) => void;
   onSystemChat?: (text: string) => void;
@@ -229,12 +135,13 @@ export class GameScene extends Phaser.Scene {
   private selfUsername: string | null = null;
   private shamanUsername: string | null = null;
   private currentMap: MapData | null = null;
-  private phase: 'playing' | 'intermission' = 'playing';
+  private phase: 'waiting' | 'playing' | 'intermission' = 'waiting';
 
-  private roundEndsAt = 0;
-  private firstFinisherUsername: string | null = null;
-  private roundTransitionPending = false;
-  private mapRotation: MapData[] = [];
+  private socket: GameSocket | null = null;
+  private spawnGraceUntil = 0;
+  private carrotPickupSent = false;
+  private stumpReachSent = false;
+  private lastRespawnSentAt = 0;
 
   private remoteBunnies = new Map<string, BunnyVisual>();
   private shamanObjects = new Map<string, ShamanObjectEntry>();
@@ -363,179 +270,24 @@ init(data: GameSceneInitData): void {
     this.localGhost = this.add.image(0, 0, 'shaman_plank').setAlpha(0).setDepth(18);
     this.remoteGhost = this.add.image(0, 0, 'shaman_plank').setAlpha(0).setDepth(17).setTint(0xffe08a);
 
-    this.startLocalGame();
-  }
-
-private endLocalRound(): void {
-  this.roundTransitionPending = true;
-  this.phase = 'intermission';
-
-  this.showBanner('Round over! Next map loading...');
-
-  this.time.delayedCall(2500, () => {
-    this.startNextLocalRound();
-  });
-}
-
-private startNextLocalRound(): void {
-  // Choose a different map from the previous round.
-  const map = this.getNextLocalMap();
-
-  // The first bunny to reach the nest becomes the next shaman.
-  // If nobody finished, choose a random player.
-  const playerNames = [
-    this.localUsername,
-    ...Array.from(this.remoteBunnies.keys()),
-  ];
-
-  const nextShaman =
-    this.firstFinisherUsername &&
-    playerNames.includes(this.firstFinisherUsername)
-      ? this.firstFinisherUsername
-      : Phaser.Utils.Array.GetRandom(playerNames);
-
-  this.phase = 'playing';
-  this.roundEndsAt = Date.now() + map.roundDurationSec * 1000;
-  this.firstFinisherUsername = null;
-  this.roundTransitionPending = false;
-
-  // Load the new map and clear the previous map's objects.
-  this.loadMap(map);
-  this.updateShaman(nextShaman);
-
-  // Reset the local bunny.
-  if (this.localBunny?.matterBody) {
-    this.matter.body.setPosition(this.localBunny.matterBody, {
-      x: map.spawn.x,
-      y: map.spawn.y,
+    this.socket = new GameSocket({
+      username: this.localUsername,
+      furColor: this.localFurColor,
+      onMessage: (msg) => this.handleServerMessage(msg),
+      onStatusChange: (status) => {
+        this.uiCallbacks?.onConnectionStatusChanged?.(status);
+        if (status === 'disconnected') {
+          this.showBanner('Disconnected from room. Refresh to rejoin.');
+        }
+      },
     });
+    this.socket.connect();
 
-    this.matter.body.setVelocity(this.localBunny.matterBody, {
-      x: 0,
-      y: 0,
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.socket?.close();
+      this.socket = null;
     });
-
-    this.localBunny.setPosition(map.spawn.x, map.spawn.y);
-    this.localBunny.targetX = map.spawn.x;
-    this.localBunny.targetY = map.spawn.y;
-    this.localBunny.setVisible(true);
-    this.localBunny.hasCarrot = false;
-    this.localBunny.finished = false;
-    this.localBunny.carrotSprite.setVisible(false);
-
-    this.localState.hasCarrot = false;
-    this.localState.finished = false;
-    this.localState.groundContacts = 0;
-    this.localState.iceContacts = 0;
-    this.localState.leftWallContacts = 0;
-    this.localState.rightWallContacts = 0;
-    this.localState.coyoteUntil = 0;
-    this.localState.jumpBufferUntil = 0;
   }
-
-  // Reset all remote bunnies.
-  for (const bunny of this.remoteBunnies.values()) {
-    bunny.hasCarrot = false;
-    bunny.finished = false;
-    bunny.setVisible(true);
-    bunny.carrotSprite.setVisible(false);
-    bunny.setPosition(map.spawn.x, map.spawn.y);
-    bunny.targetX = map.spawn.x;
-    bunny.targetY = map.spawn.y;
-  }
-
-  // Update the React HUD with the new round information.
-  this.uiCallbacks?.onRoundStart?.({
-    map,
-    shaman: nextShaman,
-    roundEndsAt: this.roundEndsAt,
-    isShaman: nextShaman === this.selfUsername,
-  });
-
-  this.showBanner(`${map.name} · Shaman: ${nextShaman}`);
-}
-
-private getNextLocalMap(): MapData {
-  // Refill the rotation when every map has been played.
-  if (this.mapRotation.length === 0) {
-    this.mapRotation = [...LOCAL_MAPS];
-
-    // Shuffle the maps using Fisher-Yates.
-    for (let i = this.mapRotation.length - 1; i > 0; i--) {
-      const j = Phaser.Math.Between(0, i);
-
-      [
-        this.mapRotation[i],
-        this.mapRotation[j],
-      ] = [
-        this.mapRotation[j],
-        this.mapRotation[i],
-      ];
-    }
-
-    // Avoid repeating the previous map across rotation cycles.
-    if (
-      this.currentMap &&
-      this.mapRotation.length > 1 &&
-      this.mapRotation[0].id === this.currentMap.id
-    ) {
-      [
-        this.mapRotation[0],
-        this.mapRotation[1],
-      ] = [
-        this.mapRotation[1],
-        this.mapRotation[0],
-      ];
-    }
-  }
-
-  return this.mapRotation.shift()!;
-}
-
-private startLocalGame(): void {
-  const map = this.getNextLocalMap();
-
-  this.selfUsername = this.localUsername;
-  this.phase = 'playing';
-
-  this.roundEndsAt = Date.now() + map.roundDurationSec * 1000;
-  this.firstFinisherUsername = null;
-  this.roundTransitionPending = false;
-
-  this.loadMap(map);
-
-  // In single-player, you are the only player,
-  // so you automatically become the shaman.
-  this.updateShaman(this.localUsername);
-
-  const player: PlayerSnapshot = {
-    username: this.localUsername,
-    furColor: this.localFurColor,
-    x: map.spawn.x,
-    y: map.spawn.y,
-    vx: 0,
-    vy: 0,
-    facing: 1,
-    anim: 'idle',
-    hasCarrot: false,
-    finished: false,
-    place: null,
-    carrotsCollected: 0,
-    firstPlaces: 0,
-    shamanSaves: 0,
-  };
-
-  this.createLocalBunny(player);
-
-  this.uiCallbacks?.onRoundStart?.({
-    map,
-    shaman: this.localUsername,
-    roundEndsAt: this.roundEndsAt,
-    isShaman: true,
-  });
-
-  this.showBanner('Collect the Golden Carrot! 🥕');
-}
 
 
   private setupInputs(): void {
@@ -668,17 +420,20 @@ private startLocalGame(): void {
   public handleServerMessage(msg: ServerMessage): void {
     switch (msg.type) {
       case 'welcome':
-        if (!this.scene.isActive() || !this.textures.exists('carrot')) {
-          //this.pendingWelcome = msg;
-        } else {
-          this.applyWelcome(msg);
-        }
+        this.applyWelcome(msg);
         break;
       case 'round_start':
         this.applyRoundStart(msg);
         break;
       case 'round_ended':
         this.phase = 'intermission';
+        this.uiCallbacks?.onRoundStart?.({
+          phase: 'intermission',
+          map: this.currentMap!,
+          shaman: this.shamanUsername,
+          roundEndsAt: msg.nextRoundAt,
+          isShaman: this.isLocalShaman(),
+        });
         this.showBanner('Round Complete! Next meadow loading...');
         break;
       case 'round_ending_soon':
@@ -689,12 +444,28 @@ private startLocalGame(): void {
           this.spawnOrUpdateRemoteBunny(msg.player);
         }
         this.updateShaman(msg.shaman);
+        if (msg.roomName && msg.roomPlayers !== undefined && msg.maxPlayers !== undefined) {
+          this.uiCallbacks?.onRoomUpdated?.({
+            roomId: msg.roomId || '',
+            roomName: msg.roomName,
+            roomPlayers: msg.roomPlayers,
+            maxPlayers: msg.maxPlayers,
+          });
+        }
         this.uiCallbacks?.onOnlineCountChanged?.(this.remoteBunnies.size + (this.localBunny ? 1 : 0));
         this.uiCallbacks?.onSystemChat?.(`${msg.player.username} hopped into the meadow!`);
         break;
       case 'player_left':
         this.removeRemoteBunny(msg.username);
         this.updateShaman(msg.shaman);
+        if (msg.roomName && msg.roomPlayers !== undefined && msg.maxPlayers !== undefined) {
+          this.uiCallbacks?.onRoomUpdated?.({
+            roomId: msg.roomId || '',
+            roomName: msg.roomName,
+            roomPlayers: msg.roomPlayers,
+            maxPlayers: msg.maxPlayers,
+          });
+        }
         this.uiCallbacks?.onOnlineCountChanged?.(this.remoteBunnies.size + (this.localBunny ? 1 : 0));
         this.uiCallbacks?.onSystemChat?.(`${msg.username} hopped away.`);
         break;
@@ -712,6 +483,9 @@ private startLocalGame(): void {
         break;
       case 'boop_effect':
         this.onBoopEffect(msg);
+        break;
+      case 'player_collision':
+        this.onPlayerCollision(msg);
         break;
       case 'object_spawned':
         this.spawnShamanObject(msg.object, true);
@@ -734,9 +508,22 @@ private startLocalGame(): void {
   private applyWelcome(msg: WelcomeMessage): void {
     this.selfUsername = msg.selfUsername;
     this.phase = msg.phase;
+    this.carrotPickupSent = false;
+    this.stumpReachSent = false;
+    this.spawnGraceUntil = Date.now() + 1200;
+
+    this.uiCallbacks?.onSelfUsernameAssigned?.(msg.selfUsername);
+    this.uiCallbacks?.onRoomUpdated?.({
+      roomId: msg.roomId,
+      roomName: msg.roomName,
+      roomPlayers: msg.roomPlayers,
+      maxPlayers: msg.maxPlayers,
+    });
+
     this.loadMap(msg.map);
     this.updateShaman(msg.shaman);
     this.uiCallbacks?.onRoundStart?.({
+      phase: msg.phase,
       map: msg.map,
       shaman: msg.shaman,
       roundEndsAt: msg.roundEndsAt,
@@ -765,23 +552,38 @@ private startLocalGame(): void {
     }
 
     this.uiCallbacks?.onOnlineCountChanged?.(msg.players.length);
+    if (msg.phase === 'waiting') {
+      this.stumpHint?.setText('Waiting for players...');
+      this.showBanner(`${msg.roomName} · Waiting for players...`);
+    } else {
+      this.showBanner(`${msg.roomName} · ${msg.map.name}`);
+    }
   }
 
   private applyRoundStart(msg: Extract<ServerMessage, { type: 'round_start' }>): void {
     this.phase = 'playing';
+    this.carrotPickupSent = false;
+    this.stumpReachSent = false;
+    this.spawnGraceUntil = Date.now() + 1200;
+
     this.loadMap(msg.map);
     this.updateShaman(msg.shaman);
     this.uiCallbacks?.onRoundStart?.({
+      phase: 'playing',
       map: msg.map,
       shaman: msg.shaman,
       roundEndsAt: msg.roundEndsAt,
       isShaman: this.isLocalShaman(),
     });
 
+    const selfSpawn = msg.players?.find((p) => p.username === this.selfUsername);
+    const spawnX = selfSpawn?.x ?? msg.map.spawn.x;
+    const spawnY = selfSpawn?.y ?? msg.map.spawn.y;
+
     if (this.localBunny?.matterBody) {
-      const spawn = msg.map.spawn;
-      this.matter.body.setPosition(this.localBunny.matterBody, { x: spawn.x, y: spawn.y });
+      this.matter.body.setPosition(this.localBunny.matterBody, { x: spawnX, y: spawnY });
       this.matter.body.setVelocity(this.localBunny.matterBody, { x: 0, y: 0 });
+      this.localBunny.setPosition(spawnX, spawnY);
       this.localBunny.setVisible(true);
       this.localState.hasCarrot = false;
       this.localState.finished = false;
@@ -789,10 +591,20 @@ private startLocalGame(): void {
     }
 
     for (const rb of this.remoteBunnies.values()) {
+      const remoteSpawn = msg.players?.find((p) => p.username === rb.username);
+      const rx = remoteSpawn?.x ?? msg.map.spawn.x;
+      const ry = remoteSpawn?.y ?? msg.map.spawn.y;
       rb.hasCarrot = false;
       rb.finished = false;
       rb.setVisible(true);
       rb.carrotSprite.setVisible(false);
+      rb.setPosition(rx, ry);
+      rb.targetX = rx;
+      rb.targetY = ry;
+      if (rb.matterBody) {
+        this.matter.body.setPosition(rb.matterBody, { x: rx, y: ry });
+        rb.matterBody.isSensor = true;
+      }
     }
 
     const shamanTag = msg.shaman ? ` · Shaman: ${msg.shaman}` : '';
@@ -1026,7 +838,16 @@ private startLocalGame(): void {
     let rb = this.remoteBunnies.get(p.username);
     if (!rb) {
       rb = this.createBunnyContainer(p);
+      // Give remote bunnies a solid Matter.js collider so players physically collide.
+      rb.matterBody = this.matter.add.rectangle(p.x, p.y + 2, 26, 40, {
+        isStatic: true,
+        isSensor: Boolean(p.finished) || Date.now() < this.spawnGraceUntil,
+        chamfer: { radius: 10 },
+        friction: 0.05,
+        label: 'remote_bunny',
+      });
       this.remoteBunnies.set(p.username, rb);
+      this.refreshCrownState();
     } else {
       rb.targetX = p.x;
       rb.targetY = p.y;
@@ -1036,13 +857,16 @@ private startLocalGame(): void {
       rb.finished = Boolean(p.finished);
       rb.carrotSprite.setVisible(rb.hasCarrot);
       rb.setVisible(!rb.finished);
+      if (rb.matterBody) {
+        rb.matterBody.isSensor = rb.finished || Date.now() < this.spawnGraceUntil;
+      }
     }
   }
 
   private removeRemoteBunny(username: string): void {
     const rb = this.remoteBunnies.get(username);
     if (rb) {
-      rb.destroy();
+      this.destroyBunnyVisual(rb);
       this.remoteBunnies.delete(username);
     }
   }
@@ -1132,7 +956,7 @@ private startLocalGame(): void {
     this.shamanObjects.delete(id);
   }
 
-   private deleteShamanObjectAt(x: number, y: number): void {
+  private deleteShamanObjectAt(x: number, y: number): void {
     // Check objects from top to bottom so the topmost object is selected.
     const objects = Array.from(this.shamanObjects.values()).reverse();
 
@@ -1142,28 +966,29 @@ private startLocalGame(): void {
       const bounds = obj.sprite.getBounds();
 
       if (bounds.contains(x, y)) {
-        this.removeShamanObject(obj.id);
-        this.sparkleEmitter.emitParticleAt(x, y, 8);
+        this.socket?.send({
+          type: 'shaman_remove',
+          objectId: obj.id,
+        });
         return;
       }
     }
   }
- private spawnShamanItemAt(x: number, y: number): void {
-  if (this.selectedShamanItem === 'deleter') {
-    this.deleteShamanObjectAt(x, y);
-    return;
+
+  private spawnShamanItemAt(x: number, y: number): void {
+    if (this.selectedShamanItem === 'deleter') {
+      this.deleteShamanObjectAt(x, y);
+      return;
+    }
+
+    this.socket?.send({
+      type: 'shaman_spawn',
+      itemType: this.selectedShamanItem,
+      x,
+      y,
+      angle: this.shamanAngleRad,
+    });
   }
-
-  const object: ShamanObject = {
-    id: `local-${Date.now()}-${Math.random()}`,
-    type: this.selectedShamanItem,
-    x,
-    y,
-    angle: this.shamanAngleRad,
-  };
-
-  this.spawnShamanObject(object, true);
-}
 
   private onRemoteShamanPreview(msg: Extract<ServerMessage, { type: 'shaman_preview' }>): void {
     if (!this.remoteGhost || msg.shaman === this.selfUsername) return;
@@ -1219,21 +1044,21 @@ private startLocalGame(): void {
     if (msg.username === this.selfUsername && this.carrotSprite) {
       this.carrotSprite.setAlpha(0.28);
       this.localState.hasCarrot = true;
+      this.carrotPickupSent = true;
       this.localBunny?.carrotSprite.setVisible(true);
       this.stumpHint?.setText('Bring Carrot to Stump! 🥕');
+      this.showBanner('Golden Carrot Collected! 🥕');
     }
   }
 
   private onBunnyNested(msg: Extract<ServerMessage, { type: 'bunny_nested' }>): void {
-    if (!this.firstFinisherUsername) {
-      this.firstFinisherUsername = msg.username;
-    }
     this.leafEmitter.emitParticleAt(msg.x, msg.y - 20, 18);
     this.sparkleEmitter.emitParticleAt(msg.x, msg.y - 20, 14);
     this.audio?.playNestEntry(msg.x, msg.y);
 
     if (msg.username === this.selfUsername) {
       this.localState.finished = true;
+      this.stumpReachSent = true;
       this.localBunny?.setVisible(false);
       this.stumpHint?.setText('Stump Nest');
       this.showBanner(`Placed #${msg.place} in the Stump Nest! 🥕`);
@@ -1246,6 +1071,9 @@ private startLocalGame(): void {
       if (rb) {
         rb.finished = true;
         rb.setVisible(false);
+        if (rb.matterBody) {
+          rb.matterBody.isSensor = true;
+        }
       }
     }
     this.uiCallbacks?.onSystemChat?.(`${msg.username} burrowed into the stump (#${msg.place})!`);
@@ -1256,6 +1084,9 @@ private startLocalGame(): void {
     this.matter.body.setPosition(this.localBunny.matterBody, { x: msg.x, y: msg.y });
     this.matter.body.setVelocity(this.localBunny.matterBody, { x: 0, y: 0 });
     this.localState.hasCarrot = false;
+    this.carrotPickupSent = false;
+    this.stumpReachSent = false;
+    this.spawnGraceUntil = Date.now() + 1200;
     this.localBunny.carrotSprite.setVisible(false);
     this.carrotSprite?.setAlpha(1);
     this.stumpHint?.setText('Stump Nest');
@@ -1279,8 +1110,22 @@ private startLocalGame(): void {
       const hit = (msg.impulses || []).find((i) => i.username === this.selfUsername);
       if (hit) {
         this.matter.body.setVelocity(this.localBunny.matterBody, {
-          x: hit.vx / 48,
-          y: hit.vy / 48,
+          x: hit.vx,
+          y: hit.vy,
+        });
+      }
+    }
+  }
+
+  private onPlayerCollision(msg: Extract<ServerMessage, { type: 'player_collision' }>): void {
+    this.dustEmitter.emitParticleAt(msg.x, msg.y, 6);
+    if (this.localBunny?.matterBody && !this.localState.finished) {
+      const hit = (msg.impulses || []).find((i) => i.username === this.selfUsername);
+      if (hit) {
+        this.audio?.playHop(msg.x, msg.y);
+        this.matter.body.setVelocity(this.localBunny.matterBody, {
+          x: hit.vx,
+          y: hit.vy,
         });
       }
     }
@@ -1321,28 +1166,6 @@ private startLocalGame(): void {
 
   update(time: number, delta: number): void {
     const dtFactor = Math.min(2.5, delta / 16.67);
-    if (
-      this.phase === 'playing' &&
-      this.roundEndsAt > 0 &&
-      Date.now() >= this.roundEndsAt &&
-      !this.roundTransitionPending
-    ) {
-      this.endLocalRound();
-    }
-    if (
-      this.phase === 'playing' &&
-      !this.roundTransitionPending
-    ) {
-      const allBunniesFinished =
-        this.localState.finished &&
-        Array.from(this.remoteBunnies.values()).every(
-          (bunny) => bunny.finished
-        );
-
-      if (allBunniesFinished) {
-        this.endLocalRound();
-      }
-    }
 
     if (this.isLocalShaman() && this.phase === 'playing' && !this.isTypingInInput() && this.keys) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.one)) this.setShamanItem('plank');
@@ -1364,11 +1187,21 @@ private startLocalGame(): void {
           .setAlpha(0.45);
       }
 
+      if (time - this.localState.lastPreviewSentAt >= 75) {
+        this.localState.lastPreviewSentAt = time;
+        this.socket?.send({
+          type: 'shaman_preview',
+          itemType: this.selectedShamanItem,
+          x: worldPt.x,
+          y: worldPt.y,
+          angle: this.shamanAngleRad,
+        });
+      }
     } else {
       this.localGhost?.setAlpha(0);
     }
 
-    if (!this.isLocalShaman() && this.phase !== 'playing') {
+    if (this.isLocalShaman() || this.phase !== 'playing') {
       this.remoteGhost?.setAlpha(0);
     }
 
@@ -1393,7 +1226,7 @@ private startLocalGame(): void {
       }
     }
 
-    if (this.localBunny && !this.localState.finished && this.phase === 'playing') {
+    if (this.localBunny && !this.localState.finished && (this.phase === 'playing' || this.phase === 'waiting')) {
       this.updateLocalBunnyMovement(time, dtFactor);
     }
 
@@ -1401,14 +1234,17 @@ private startLocalGame(): void {
       this.checkLocalObjectives();
     }
 
-
+    const inGrace = Date.now() < this.spawnGraceUntil;
     for (const rb of this.remoteBunnies.values()) {
-      rb.x = Phaser.Math.Linear(rb.x, rb.targetX, 0.3);
-      rb.y = Phaser.Math.Linear(rb.y, rb.targetY, 0.3);
+      rb.x = Phaser.Math.Linear(rb.x, rb.targetX, 0.32);
+      rb.y = Phaser.Math.Linear(rb.y, rb.targetY, 0.32);
+      if (rb.matterBody) {
+        this.matter.body.setPosition(rb.matterBody, { x: rb.x, y: rb.y + 2 });
+        rb.matterBody.isSensor = rb.finished || inGrace;
+      }
       this.animateBunnyVisual(rb, rb.facing, rb.animState, time);
     }
   }
-
 
   private checkLocalObjectives(): void {
     const bunny = this.localBunny;
@@ -1418,7 +1254,7 @@ private startLocalGame(): void {
     }
 
     // Collect the golden carrot.
-    if (!this.localState.hasCarrot && this.carrotSprite) {
+    if (!this.localState.hasCarrot && !this.carrotPickupSent && this.carrotSprite) {
       const distanceToCarrot = Phaser.Math.Distance.Between(
         bunny.x,
         bunny.y,
@@ -1427,67 +1263,36 @@ private startLocalGame(): void {
       );
 
       if (distanceToCarrot < 38) {
-        this.localState.hasCarrot = true;
-
-        this.carrotSprite.setAlpha(0.28);
-        bunny.carrotSprite.setVisible(true);
-
-        this.sparkleEmitter.emitParticleAt(
-          this.currentMap.carrot.x,
-          this.currentMap.carrot.y,
-          18
-        );
-
-        this.audio?.playCarrot(bunny.x, bunny.y);
-
-        this.stumpHint?.setText('Bring the carrot to the stump! 🥕');
-
-        this.showBanner('Golden Carrot Collected! 🥕');
+        this.carrotPickupSent = true;
+        this.socket?.send({ type: 'carrot_pickup' });
       }
     }
 
-  // Return to the stump with the carrot.
-  if (this.localState.hasCarrot) {
-    const distanceToStump = Phaser.Math.Distance.Between(
-      bunny.x,
-      bunny.y,
-      this.currentMap.stump.x,
-      this.currentMap.stump.y
-    );
+    // Return to the stump with the carrot.
+    if (this.localState.hasCarrot && !this.stumpReachSent) {
+      const distanceToStump = Phaser.Math.Distance.Between(
+        bunny.x,
+        bunny.y,
+        this.currentMap.stump.x,
+        this.currentMap.stump.y
+      );
 
-    if (distanceToStump < 55) {
-      // The shaman must wait until every other bunny has entered.
-      if (this.isLocalShaman()) {
-        const otherBunniesStillOutside = Array.from(
-          this.remoteBunnies.values()
-        ).some((otherBunny) => !otherBunny.finished);
+      if (distanceToStump < 55) {
+        if (this.isLocalShaman()) {
+          const otherBunniesStillOutside = Array.from(
+            this.remoteBunnies.values()
+          ).some((otherBunny) => !otherBunny.finished);
 
-        if (otherBunniesStillOutside) {
-              this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
-              return;
-            }
-      }
-          if (!this.firstFinisherUsername) {
-            this.firstFinisherUsername = this.localUsername;
+          if (otherBunniesStillOutside) {
+            this.stumpHint?.setText('Wait for all other bunnies to enter! 🐰');
+            return;
           }
-          this.localState.finished = true;
-
-          bunny.setVisible(false);
-
-          this.leafEmitter.emitParticleAt(bunny.x, bunny.y, 25);
-          this.sparkleEmitter.emitParticleAt(bunny.x, bunny.y, 20);
-
-          this.audio?.playNestEntry(bunny.x, bunny.y);
-
-          this.showBanner('You made it home! Welcome to the Burrow! 🏡');
-
-          this.uiCallbacks?.onStatsUpdated?.({
-            carrotsCollected: 1,
-            firstPlaces: 1,
-          });
+        }
+        this.stumpReachSent = true;
+        this.socket?.send({ type: 'stump_reach' });
+      }
     }
   }
-}
 
   private updateLocalBunnyMovement(time: number, dtFactor: number): void {
     const bunny = this.localBunny;
@@ -1560,9 +1365,7 @@ private startLocalGame(): void {
 
     if (!typing && Phaser.Input.Keyboard.JustDown(this.keys.f) && time - state.lastBoopAt > 1400) {
       state.lastBoopAt = time;
-
-      this.audio?.playBoop(bunny.x, bunny.y);
-      this.sparkleEmitter.emitParticleAt(bunny.x, bunny.y, 8);
+      this.socket?.send({ type: 'boop' });
     }
 
     if (!onGround) {
@@ -1575,7 +1378,9 @@ private startLocalGame(): void {
 
     this.animateBunnyVisual(bunny, state.facing, state.anim, time);
 
-    if (bunny.y > WORLD_HEIGHT + 70) {
+    if (bunny.y > WORLD_HEIGHT + 70 && time - this.lastRespawnSentAt > 400) {
+      this.lastRespawnSentAt = time;
+      this.socket?.send({ type: 'respawn_request' });
       this.matter.body.setPosition(body, {
         x: this.currentMap?.spawn.x || 160,
         y: this.currentMap?.spawn.y || 540,
@@ -1583,6 +1388,18 @@ private startLocalGame(): void {
       this.matter.body.setVelocity(body, { x: 0, y: 0 });
     }
 
+    if (time - state.lastStateSentAt >= 40) {
+      state.lastStateSentAt = time;
+      this.socket?.send({
+        type: 'state',
+        x: bunny.x,
+        y: bunny.y,
+        vx: body.velocity.x,
+        vy: body.velocity.y,
+        facing: state.facing,
+        anim: state.anim,
+      });
+    }
   }
 
   private animateBunnyVisual(container: BunnyVisual, facing: 1 | -1, anim: AnimState, time: number): void {

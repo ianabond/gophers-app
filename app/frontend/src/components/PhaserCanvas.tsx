@@ -48,6 +48,15 @@ export function PhaserCanvas({
       onOnlineCountChanged: (c) =>
         callbacksRef.current.onOnlineCountChanged?.(c),
 
+      onRoomUpdated: (room) =>
+        callbacksRef.current.onRoomUpdated?.(room),
+
+      onSelfUsernameAssigned: (u) =>
+        callbacksRef.current.onSelfUsernameAssigned?.(u),
+
+      onConnectionStatusChanged: (st) =>
+        callbacksRef.current.onConnectionStatusChanged?.(st),
+
       onStatsUpdated: (st) =>
         callbacksRef.current.onStatsUpdated?.(st),
 
